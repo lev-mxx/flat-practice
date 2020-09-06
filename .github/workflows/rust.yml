@@ -33,4 +33,4 @@ jobs:
     - name: Build
       run: CPATH=~/GraphBLAS/include cargo build --verbose
     - name: Run tests
-      run: cargo test --verbose
+      run: LD_LIBRARY_PATH=/tmp/testinst/lib LIBRARY_PATH=/tmp/testinst/lib cargo test --verbose
