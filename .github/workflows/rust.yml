@@ -16,7 +16,21 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Cache GraphBLAS
+      id: cache-graphblas
+      uses: actions/cache@v2
+      with:
+        path: ~/GraphBLAS
+        key: ${{ runner.os }}
+    - name: Get GraphBLAS
+      if: steps.cache-graphblas.outputs.cache-hit != 'true'
+      run: |
+        git clone -b stable --single-branch https://github.com/DrTimothyAldenDavis/GraphBLAS ~/GraphBLAS.repo
+        cd ~/GraphBLAS.repo
+        make
+        cmake -DCMAKE_INSTALL_PREFIX=~/GraphBLAS -B build
+        make install
     - name: Build
-      run: cargo build --verbose
+      run: CPATH=~/GraphBLAS/include cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
