@@ -2,7 +2,6 @@
 use rustgraphblas::*;
 use rustomaton::regex::Regex;
 use rustomaton::dfa::ToDfa;
-use rustomaton::automaton::Automata;
 
 #[test]
 fn link_test() {
@@ -11,6 +10,7 @@ fn link_test() {
 
 #[test]
 fn automatons_test() {
+    let alphabet = ['a', 'b', 'c'];
     let ab = Regex::parse_with_alphabet(alphabet.iter().cloned().collect(), "(a+|b+)").unwrap().to_dfa();
     let bc = Regex::parse_with_alphabet(alphabet.iter().cloned().collect(), "(c+|b+)").unwrap().to_dfa();
     let b = Regex::parse_with_alphabet(alphabet.iter().cloned().collect(), "bb*").unwrap().to_dfa();
