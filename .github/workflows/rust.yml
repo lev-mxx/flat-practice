@@ -16,27 +16,17 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Cache GraphBLAS
+    - name: Cache
       id: cache-graphblas
       uses: actions/cache@v2
       with:
-        path: ~/GraphBLAS
+        path: |
+          build/bin
+          build/lib
+          build/lib64
+          build/home
         key: ${{ runner.os }}
-    - name: Get GraphBLAS
-      if: steps.cache-graphblas.outputs.cache-hit != 'true'
-      run: |
-        git clone -b stable --single-branch https://github.com/DrTimothyAldenDavis/GraphBLAS ~/GraphBLAS.repo
-        cd ~/GraphBLAS.repo
-        make
-        cmake -DCMAKE_INSTALL_PREFIX=~/GraphBLAS -B build
-        make install
-    - name: Cache Rust dependencies
-      id: cache-rust
-      uses: actions/cache@v2
-      with:
-        path: ~/.cargo
-        key: ${{ runner.os }}-rust
     - name: Build
-      run: CPATH=~/GraphBLAS/include cargo build --verbose
+      run: make
     - name: Run tests
-      run: LD_LIBRARY_PATH=~/GraphBLAS/lib LIBRARY_PATH=~/GraphBLAS/lib cargo test --verbose
+      run: make test
