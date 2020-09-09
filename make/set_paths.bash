@@ -1,3 +1,4 @@
+mkdir -p build
 if ! source make/has_rust.bash; then
     export HOME=$(pwd)/build/home
     export PATH=$(pwd)/build/bin:$PATH
