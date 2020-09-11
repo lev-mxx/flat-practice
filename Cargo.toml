@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 rustgraphblas = "0.12.0-alpha"
+rustomaton = "0.2.1"
