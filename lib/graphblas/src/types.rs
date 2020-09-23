@@ -10,7 +10,7 @@ make_ffi_trait!(Type<T>);
 make_ffi_static_struct!(Type<T>);
 
 pub trait GrbType<T> {
-    fn grb_type() -> &'static dyn Type<T> where Self: Sized;
+    fn grb_type() -> &'static StaticType<T>;
 }
 
 #[macro_export]
@@ -37,7 +37,7 @@ macro_rules! make_type {
             make_static_instance!(Type<T> => <$ty>, [<GrB_ $grb_ty>], [<$ty _type>]);
 
             impl GrbType<$ty> for $ty {
-                fn grb_type() -> &'static dyn Type<$ty> { Type::<$ty>::[<$ty _type>]() }
+                fn grb_type() -> &'static StaticType<$ty> { Type::<$ty>::[<$ty _type>]() }
             }
         }
     }

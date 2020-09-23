@@ -134,15 +134,7 @@ impl<T> Drop for BaseTypeMatrix<T> {
 
 impl<T> Debug for BaseTypeMatrix<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let (r, c) = (self.nrows(), self.ncols());
-        let nvals = self.nvals();
-        write!(
-            f,
-            "SparseMatrix[shape=({}x{}), vals={}]",
-            r,
-            c,
-            nvals,
-        )
+        write!(f, "Matrix[({}x{}), vals={}]", self.nrows(), self.ncols(), self.nvals())
     }
 }
 
@@ -298,7 +290,7 @@ macro_rules! _matrix_get_impl {
                     match $get_elem_func(P.as_mut_ptr(), self.grb_link().link(), i, j) {
                         0 => Some(P.assume_init()),
                         1 => None,
-                        e => panic!("Failed to get element at ({}, {}) GrB_error: {}", i, j, e),
+                        e => { handle_grb_info(e); None }
                     }
                 }
             }
