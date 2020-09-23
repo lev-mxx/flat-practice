@@ -32,21 +32,13 @@ impl<T: 'static + GrbType<T>> dyn Matrix<T> {
         }
     }
 
-    pub fn mxm<S: Semiring<T>>(
-        semiring: &S,
-        a: &BaseTypeMatrix<T>,
-        b: &BaseTypeMatrix<T>,
-    ) -> BaseTypeMatrix<T> {
+    pub fn mxm<S: Semiring<T>>(semiring: &S, a: &BaseTypeMatrix<T>, b: &BaseTypeMatrix<T>,) -> BaseTypeMatrix<T> {
         let mut m = Matrix::new(a.nrows(), b.ncols());
         m.assign_mxm(semiring, a, b);
         m
     }
 
-    pub fn kronecker<S: Semiring<T>>(
-        semiring: &S,
-        a: &BaseTypeMatrix<T>,
-        b: &BaseTypeMatrix<T>,
-    ) -> BaseTypeMatrix<T> {
+    pub fn kronecker<S: Semiring<T>>(semiring: &S, a: &BaseTypeMatrix<T>, b: &BaseTypeMatrix<T>,) -> BaseTypeMatrix<T> {
         let mut m = Matrix::new(a.nrows() * b.nrows(), a.ncols() * b.ncols());
         m.assign_kronecker(semiring, a, b);
         m
@@ -59,47 +51,22 @@ pub trait MatrixActions<T> {
     fn nvals(&self) -> u64;
     fn clear(&mut self);
     fn assign_mxm<S: Semiring<T>>(
-        &mut self,
-        semiring: &S,
-        a: &Self,
-        b: &Self,
-    );
+        &mut self, semiring: &S, a: &Self, b: &Self,);
 
     fn accumulate_mxm<X, A: BinaryOp<T, X, T>, S: Semiring<X>, M: Matrix<X>>(
-        &mut self,
-        acc: &A,
-        semiring: &S,
-        a: &M,
-        b: &M,
-    );
+        &mut self, acc: &A, semiring: &S, a: &M, b: &M,);
 
     fn assign_apply<X, O: UnaryOp<X, T>, M: Matrix<X>>(
-        &mut self,
-        op: &O,
-        a: &M,
-    );
+        &mut self, op: &O, a: &M,);
 
     fn accumulate_apply<X, Y, A: BinaryOp<T, Y, T>, O: UnaryOp<X, Y>, M: Matrix<X>>(
-        &mut self,
-        acc: &A,
-        op: &O,
-        a: &M,
-    );
+        &mut self, acc: &A, op: &O, a: &M,);
 
     fn assign_kronecker<S: Semiring<T>>(
-        &mut self,
-        semiring: &S,
-        a: &Self,
-        b: &Self,
-    );
+        &mut self, semiring: &S, a: &Self, b: &Self,);
 
     fn accumulate_kronecker<X, S: Semiring<X>, A: BinaryOp<T, X, T>, M: Matrix<X>>(
-        &mut self,
-        acc: &A,
-        semiring: &S,
-        a: &M,
-        b: &M,
-    );
+        &mut self, acc: &A, semiring: &S, a: &M, b: &M,);
 }
 
 impl<T, MT: Matrix<T>> MatrixActions<T> for MT {
@@ -120,57 +87,32 @@ impl<T, MT: Matrix<T>> MatrixActions<T> for MT {
     }
 
     fn assign_mxm<S: Semiring<T>>(
-        &mut self,
-        semiring: &S,
-        a: &Self,
-        b: &Self,
-    ) {
+        &mut self, semiring: &S, a: &Self, b: &Self,) {
         grb_run!(GrB_mxm, self.grb_link_mut().link_mut(), ptr::null_mut(), ptr::null_mut(), semiring.grb_link().link(), a.grb_link().link(), b.grb_link().link(), ptr::null_mut());
     }
 
     fn accumulate_mxm<X, A: BinaryOp<T, X, T>, S: Semiring<X>, M: Matrix<X>>(
-        &mut self,
-        acc: &A,
-        semiring: &S,
-        a: &M,
-        b: &M,
-    ) {
+        &mut self, acc: &A, semiring: &S, a: &M, b: &M,) {
         grb_run!(GrB_mxm, self.grb_link_mut().link_mut(), ptr::null_mut(), acc.grb_link().link(), semiring.grb_link().link(), a.grb_link().link(), b.grb_link().link(), ptr::null_mut());
     }
 
     fn assign_apply<X, O: UnaryOp<X, T>, M: Matrix<X>>(
-        &mut self,
-        op: &O,
-        a: &M,
-    ) {
+        &mut self, op: &O, a: &M,) {
         grb_run!(GrB_Matrix_apply, self.grb_link_mut().link_mut(), ptr::null_mut(), ptr::null_mut(), op.grb_link().link(), a.grb_link().link(), ptr::null_mut());
     }
 
     fn accumulate_apply<X, Y, A: BinaryOp<T, Y, T>, O: UnaryOp<X, Y>, M: Matrix<X>>(
-        &mut self,
-        acc: &A,
-        op: &O,
-        a: &M,
-    ) {
+        &mut self, acc: &A, op: &O, a: &M,) {
         grb_run!(GrB_Matrix_apply, self.grb_link_mut().link_mut(), ptr::null_mut(), acc.grb_link().link(), op.grb_link().link(), a.grb_link().link(), ptr::null_mut());
     }
 
     fn assign_kronecker<S: Semiring<T>>(
-        &mut self,
-        semiring: &S,
-        a: &Self,
-        b: &Self,
-    ) {
+        &mut self, semiring: &S, a: &Self, b: &Self,) {
         grb_run!(GrB_Matrix_kronecker_Semiring, self.grb_link_mut().link_mut(), ptr::null_mut(), ptr::null_mut(), semiring.grb_link().link(), a.grb_link().link(), b.grb_link().link(), ptr::null_mut());
     }
 
     fn accumulate_kronecker<X, S: Semiring<X>, A: BinaryOp<T, X, T>, M: Matrix<X>>(
-        &mut self,
-        acc: &A,
-        semiring: &S,
-        a: &M,
-        b: &M,
-    ) {
+        &mut self, acc: &A, semiring: &S, a: &M, b: &M,) {
         grb_run!(GrB_Matrix_kronecker_Semiring, self.grb_link_mut().link_mut(), ptr::null_mut(), acc.grb_link().link(), semiring.grb_link().link(), a.grb_link().link(), b.grb_link().link(), ptr::null_mut());
     }
 }
