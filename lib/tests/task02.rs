@@ -49,20 +49,20 @@ fn test_intersection_empty() {
 }
 
 #[test]
-fn test_0() {
+fn test_regex() {
     let ab = Automaton::build_request("(a|b)+").unwrap();
-    let bc = Automaton::build_request("(c|b)+").unwrap();
-    let bi = ab.intersection(&bc);
 
     assert!(ab.accepts("aa"));
     assert!(ab.accepts("bb"));
     assert!(ab.accepts("abab"));
     assert!(!ab.accepts("cc"));
+}
 
-    assert!(bc.accepts("bb"));
-    assert!(bc.accepts("cc"));
-    assert!(bc.accepts("bcbc"));
-    assert!(!bc.accepts("aa"));
+#[test]
+fn test_intersection() {
+    let ab = Automaton::build_request("(a|b)+").unwrap();
+    let bc = Automaton::build_request("(c|b)+").unwrap();
+    let bi = ab.intersection(&bc);
 
     assert!(bi.accepts("bb"));
     assert!(!bi.accepts("aa"));
