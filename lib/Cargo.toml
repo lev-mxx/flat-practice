@@ -1,5 +1,5 @@
 [package]
-name = "flat-practice"
+name = "flat-practice-lib"
 version = "0.1.0"
 authors = ["Lev Malets <lev.mxx@gmail.com>"]
 edition = "2018"
@@ -7,4 +7,5 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-flat-practice-lib = { path = "lib" }
+rustomaton = { git = "https://github.com/lev-mxx/rustomaton" }
+graphblas = { path = "graphblas" }

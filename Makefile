@@ -5,7 +5,7 @@ build: dependencies
 	source make/set_paths.bash && cargo build
 
 test: dependencies
-	source make/set_paths.bash && cargo test
+	source make/set_paths.bash && (cd lib/graphblas && cargo test) && (cd lib && cargo test) && cargo test
 
 dependencies: build/rust build/graphblas
 
