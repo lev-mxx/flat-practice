@@ -32,6 +32,9 @@ impl Automaton {
         for line in reader.lines() {
             let line = line?;
             let split: Vec<&str> = line.split(" ").collect();
+            if split.len() == 0 {
+                continue
+            }
             if split.len() != 3 {
                 Err(Error::from(ErrorKind::InvalidData))?
             }

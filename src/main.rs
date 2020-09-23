@@ -1,24 +1,40 @@
 
 use std::env;
 use flat_practice_lib::automaton::Automaton;
-use std::io::{Result, ErrorKind, Error};
+use std::error::Error;
 
-fn main() -> Result<()> {
+static HELP: &'static str = "Arguments: (path to graph file) (path to request file) stats";
+
+fn main() -> Result<(), std::io::Error> {
     let mut args = env::args();
     args.next();
 
-    let graph_path = args.next().ok_or_else(|| Error::from(ErrorKind::InvalidInput))?;
-    let regex_path = args.next().ok_or_else(|| Error::from(ErrorKind::InvalidInput))?;
+    let graph_path = if let Some(graph_path) = args.next() {
+        graph_path
+    } else {
+        panic!(HELP);
+    };
 
-    let graph = Automaton::read_graph(graph_path)?;
-    let regex = Automaton::read_regex(regex_path)?;
+    let regex_path = if let Some(regex_path) = args.next() {
+        regex_path
+    } else {
+        panic!(HELP);
+    };
 
-    match args.next().unwrap().as_str() {
+    let cmd = if let Some(cmd) = args.next() {
+        cmd
+    } else {
+        panic!(HELP);
+    };
+
+    match cmd.as_str() {
         "stats" => {
+            let graph = Automaton::read_graph(graph_path)?;
+            let regex = Automaton::read_regex(regex_path)?;
             let intersection = graph.intersection(&regex);
             intersection.print_stats();
         },
-        _ => {}
+        other => panic!("unknown command {}", other)
     }
 
     Ok(())
