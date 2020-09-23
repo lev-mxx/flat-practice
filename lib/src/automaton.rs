@@ -70,7 +70,6 @@ impl Automaton {
     }
 
     pub fn build_request(regex: &str) -> Result<Automaton> {
-        println!("{}", regex);
         let regex = Regex::from_str(regex).map_err(|str| Error::new(ErrorKind::Other, str))?;
         let dfa = regex.to_dfa().minimize();
 

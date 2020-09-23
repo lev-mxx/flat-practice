@@ -1,6 +1,5 @@
 
 use std::collections::HashSet;
-use proptest::*;
 use flat_practice_lib::automaton::*;
 
 fn assert_reachable(g: &Automaton, pairs: &[Endpoints]) {
@@ -51,21 +50,21 @@ fn test_intersection_empty() {
 
 #[test]
 fn test_0() {
-    let ab = Automaton::build_request("(a+|b+)").unwrap();
-    let bc = Automaton::build_request("(c+|b+)").unwrap();
-    let b = Automaton::build_request("bb*").unwrap();
+    let ab = Automaton::build_request("(a|b)+").unwrap();
+    let bc = Automaton::build_request("(c|b)+").unwrap();
     let bi = ab.intersection(&bc);
 
     assert!(ab.accepts("aa"));
     assert!(ab.accepts("bb"));
-    assert!(!ab.accepts("aabb"));
+    assert!(ab.accepts("abab"));
+    assert!(!ab.accepts("cc"));
 
     assert!(bc.accepts("bb"));
     assert!(bc.accepts("cc"));
-    assert!(!bc.accepts("bbcc"));
-
-    assert!(b.accepts("bb"));
+    assert!(bc.accepts("bcbc"));
+    assert!(!bc.accepts("aa"));
 
     assert!(bi.accepts("bb"));
     assert!(!bi.accepts("aa"));
+    assert!(!bi.accepts("cc"));
 }
