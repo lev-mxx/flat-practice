@@ -50,7 +50,7 @@ fn test_intersection_empty() {
 
 #[test]
 fn test_regex() {
-    let ab = Automaton::build_request("(a|b)+").unwrap();
+    let ab = Automaton::from_regex("(a|b)+").unwrap();
 
     assert!(ab.accepts("aa"));
     assert!(ab.accepts("bb"));
@@ -60,8 +60,8 @@ fn test_regex() {
 
 #[test]
 fn test_intersection() {
-    let ab = Automaton::build_request("(a|b)+").unwrap();
-    let bc = Automaton::build_request("(c|b)+").unwrap();
+    let ab = Automaton::from_regex("(a|b)+").unwrap();
+    let bc = Automaton::from_regex("(c|b)+").unwrap();
     let bi = ab.intersection(&bc);
 
     assert!(bi.accepts("bb"));

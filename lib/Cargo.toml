@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 rustomaton = { git = "https://github.com/lev-mxx/rustomaton" }
 graphblas = { path = "graphblas" }
+anyhow = "1.0.32"
