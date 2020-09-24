@@ -1,14 +1,16 @@
 use std::fs::File;
-use std::io::{BufReader, BufRead, Error, ErrorKind, Result};
+use std::io::{BufReader, BufRead, Error, ErrorKind};
 use std::str::FromStr;
-use std::num::ParseIntError;
 
 use rustomaton::regex::*;
 use rustomaton::dfa::*;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use anyhow::Result;
 
 use graphblas::*;
+use std::hash::Hash;
+use std::fmt::{Debug, Display};
 
 #[derive(Debug)]
 pub struct Automaton {
@@ -36,15 +38,15 @@ impl Automaton {
                 continue
             }
             if split.len() != 3 {
-                Err(Error::from(ErrorKind::InvalidData))?
+                Err(std::io::Error::from(std::io::ErrorKind::InvalidData))?
             }
 
-            let from = u64::from_str(split.get(0).unwrap()).or_else(map_parse_int_error)?;
+            let from = u64::from_str(split[0])?;
             if from > max { max = from }
-            let to = u64::from_str(split.get(2).unwrap()).or_else(map_parse_int_error)?;
+            let to = u64::from_str(split[2])?;
             if to > max { max = to }
 
-            let label = split.get(1).unwrap().to_string();
+            let label = split[1].to_string();
             edges.push((from, to, label));
         }
 
@@ -56,7 +58,46 @@ impl Automaton {
         let reader = BufReader::new(file);
 
         let first_line = reader.lines().next().ok_or_else(|| Error::from(ErrorKind::InvalidInput))??;
-        Automaton::build_request(first_line.as_str())
+        Automaton::from_regex(first_line.as_str())
+    }
+
+    const TOKENS: &'static [char] = &['(', ')', '+', '*', '?', '.', '|'];
+
+    pub fn read_query<P: AsRef<Path>>(path: P) -> Result<Automaton> {
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
+        let line = reader.lines().skip(2).next().ok_or_else(|| Error::from(ErrorKind::InvalidInput))??;
+
+        let mut regex = Vec::<RegexPart<String>>::new();
+        let mut chars = line.chars();
+        let mut next = Some(' ');
+
+        while next.is_some() && next.unwrap() != '>' {
+            next = chars.next();
+        }
+        next = chars.next();
+
+        while next.is_some() {
+            let c = next.unwrap();
+
+            if c.is_whitespace() {
+                next = chars.next();
+            } else if Automaton::TOKENS.iter().any(|x| *x == c) {
+                regex.push(RegexPart::Token(c));
+                next = chars.next();
+            } else {
+                let mut symbol = Vec::<char>::new();
+                while next.is_some() && next.unwrap().is_alphanumeric() {
+                    symbol.push(next.unwrap());
+                    next = chars.next();
+                }
+                regex.push(RegexPart::Symbol(symbol.iter().collect()));
+            }
+        }
+
+        let regex = Regex::parse(regex.as_slice()).map_err(|e| anyhow::Error::msg(e))?;
+        let dfa = regex.to_dfa().minimize();
+        Ok(Automaton::from_dfa(&dfa))
     }
 
     pub fn build_graph(size: u64, edges: &[Edge]) -> Automaton {
@@ -72,24 +113,27 @@ impl Automaton {
         }
     }
 
-    pub fn build_request(regex: &str) -> Result<Automaton> {
+    pub fn from_regex(regex: &str) -> Result<Automaton> {
         let regex = Regex::from_str(regex).map_err(|str| Error::new(ErrorKind::Other, str))?;
         let dfa = regex.to_dfa().minimize();
+        Ok(Automaton::from_dfa(&dfa))
+    }
 
+    fn from_dfa<A: ToString + Hash + Ord + Clone + Debug + Display>(dfa: &DFA<A>) -> Automaton {
         let mut initial_states = HashSet::<u64>::new();
         initial_states.insert(dfa.initial as u64);
         let final_states: HashSet<u64> = dfa.finals.iter().map(|x| *x as u64).collect();
         let size = dfa.transitions.len() as u64;
         let matrices = Automaton::from_edges(size, dfa.transitions.iter().enumerate()
-             .flat_map(|(from, map)|
-                 map.iter().map(move |(c, to)| (from as u64, *to as u64, c.to_string()))));
+            .flat_map(|(from, map)|
+                map.iter().map(move |(c, to)| (from as u64, *to as u64, c.to_string()))));
 
-        Ok(Automaton {
+        Automaton {
             matrices,
             size,
             initial_states,
             final_states
-        })
+        }
     }
 
     fn from_edges<I : Iterator<Item = Edge>>(size: u64, edges_it: I) -> HashMap<String, BaseTypeMatrix<bool>> {
@@ -145,10 +189,8 @@ impl Automaton {
         }
     }
 
-    pub fn print_stats(&self) {
-        for (label, matrix) in &self.matrices {
-            println!("{} {}", label, matrix.nvals());
-        }
+    pub fn get_stats(&self) -> HashMap<String, u64> {
+        self.matrices.iter().map(|(label, matrix)| (label.to_string(), matrix.nvals())).collect()
     }
 
     fn reachable_pairs<C: Fn(&mut BaseTypeMatrix<bool>), F: Fn(&u64, &u64) -> bool>(&self, close: C, filter: F) -> Vec<Endpoints> {
@@ -233,12 +275,8 @@ impl Automaton {
         while prev != m.nvals() {
             prev = m.nvals();
             production.clear();
-            production.accumulate_mxm(BinaryOp::<bool, bool, bool>::second(), Semiring::<bool>::lor_land(), &adj, &m);
+            production.accumulate_mxm(BinaryOp::<bool, bool, bool>::second(), Semiring::<bool>::lor_land(), &adj, m);
             m.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), &production);
         }
     }
-}
-
-fn map_parse_int_error<T>(e: ParseIntError) -> Result<T> {
-    Result::Err(Error::new(ErrorKind::Other, e))
 }
