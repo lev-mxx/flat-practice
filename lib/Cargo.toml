@@ -7,6 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rustomaton = { git = "https://github.com/lev-mxx/rustomaton" }
-graphblas = { path = "graphblas" }
+pyo3 = "0.12.1"
 anyhow = "1.0.32"
+graphblas = { path = "graphblas" }
+

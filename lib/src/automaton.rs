@@ -1,16 +1,17 @@
 use std::fs::File;
 use std::io::{BufReader, BufRead, Error, ErrorKind};
-use std::str::FromStr;
+use std::str::{FromStr, from_utf8};
 
-use rustomaton::regex::*;
-use rustomaton::dfa::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 use anyhow::Result;
 
 use graphblas::*;
-use std::hash::Hash;
-use std::fmt::{Debug, Display};
+use std::fmt::{Debug};
+use pyo3::Python;
+use pyo3::types::PyModule;
+
+use crate::cfg::{ContextFreeGrammar};
 
 #[derive(Debug)]
 pub struct Automaton {
@@ -19,8 +20,8 @@ pub struct Automaton {
     pub initial_states: HashSet<u64>,
     pub final_states: HashSet<u64>,
 }
-
 pub type Endpoints = (u64, u64);
+
 pub type Edge = (u64, u64, String);
 
 impl Automaton {
@@ -28,15 +29,28 @@ impl Automaton {
     pub fn read_graph<P: AsRef<Path>>(path: P) -> Result<Automaton> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
+        let mut lines = Vec::<String>::new();
+        for line in reader.lines() {
+            let line = line?;
+            lines.push(line);
+        }
+
+        Automaton::from_lines(lines)
+    }
+
+    pub fn from_text(text: &str) -> Result<Automaton> {
+        Automaton::from_lines(text.to_string().split("\n").map(str::to_string).collect())
+    }
+
+    fn from_lines(lines: Vec<String>) -> Result<Automaton> {
         let mut edges = Vec::<Edge>::new();
         let mut max: u64 = 0;
 
-        for line in reader.lines() {
-            let line = line?;
-            let split: Vec<&str> = line.split(" ").collect();
-            if split.len() == 0 {
+        for line in lines {
+            if line.is_empty() {
                 continue
             }
+            let split: Vec<&str> = line.split(" ").collect();
             if split.len() != 3 {
                 Err(std::io::Error::from(std::io::ErrorKind::InvalidData))?
             }
@@ -61,86 +75,36 @@ impl Automaton {
         Automaton::from_regex(first_line.as_str())
     }
 
-    const TOKENS: &'static [char] = &['(', ')', '+', '*', '?', '.', '|'];
-
     pub fn read_query<P: AsRef<Path>>(path: P) -> Result<Automaton> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
         let line = reader.lines().skip(2).next().ok_or_else(|| Error::from(ErrorKind::InvalidInput))??;
-
-        let mut regex = Vec::<RegexPart<String>>::new();
-        let mut chars = line.chars();
-        let mut next = Some(' ');
-
-        while next.is_some() && next.unwrap() != '>' {
-            next = chars.next();
-        }
-        next = chars.next();
-
-        while next.is_some() {
-            let c = next.unwrap();
-
-            if c.is_whitespace() {
-                next = chars.next();
-            } else if Automaton::TOKENS.iter().any(|x| *x == c) {
-                regex.push(RegexPart::Token(c));
-                next = chars.next();
-            } else {
-                let mut symbol = Vec::<char>::new();
-                while next.is_some() && next.unwrap().is_alphanumeric() {
-                    symbol.push(next.unwrap());
-                    next = chars.next();
-                }
-                regex.push(RegexPart::Symbol(symbol.iter().collect()));
-            }
-        }
-
-        let regex = Regex::parse(regex.as_slice()).map_err(|e| anyhow::Error::msg(e))?;
-        let dfa = regex.to_dfa().minimize();
-        Ok(Automaton::from_dfa(&dfa))
+        Automaton::from_regex(line.as_str())
     }
 
     pub fn build_graph(size: u64, edges: &[Edge]) -> Automaton {
-        let matrices = Automaton::from_edges(size, edges.iter().cloned());
-        let initial_states: HashSet<u64> = (0..size).enumerate().map(|(_, b)| b).collect();
-        let final_states: HashSet<u64> = (0..size).enumerate().map(|(_, b)| b).collect();
-
-        Automaton {
-            matrices,
-            size,
-            initial_states,
-            final_states,
-        }
+        Automaton::from_edges(size, edges.iter().cloned(), (0..size).into_iter(), (0..size).into_iter())
     }
 
     pub fn from_regex(regex: &str) -> Result<Automaton> {
-        let regex = Regex::from_str(regex).map_err(|str| Error::new(ErrorKind::Other, str))?;
-        let dfa = regex.to_dfa().minimize();
-        Ok(Automaton::from_dfa(&dfa))
+        let (initial, finals, edges) = Python::with_gil(|py| -> Result<(u64, Vec<u64>, Vec<(u64, u64, String)>)> {
+            let module = PyModule::from_code(py, from_utf8(include_bytes!("py/regex_to_edges.py"))?, "a.py", "a")?;
+            let py_res: (u64, Vec<u64>, Vec<(u64, u64, String)>) = module.call1("regex_to_edges", (regex,))?.extract()?;
+            Ok(py_res)
+        })?;
+
+        Ok(Automaton::from_edges(0, edges.iter().cloned(), [initial].iter().cloned(), finals.iter().cloned()))
     }
 
-    fn from_dfa<A: ToString + Hash + Ord + Clone + Debug + Display>(dfa: &DFA<A>) -> Automaton {
-        let mut initial_states = HashSet::<u64>::new();
-        initial_states.insert(dfa.initial as u64);
-        let final_states: HashSet<u64> = dfa.finals.iter().map(|x| *x as u64).collect();
-        let size = dfa.transitions.len() as u64;
-        let matrices = Automaton::from_edges(size, dfa.transitions.iter().enumerate()
-            .flat_map(|(from, map)|
-                map.iter().map(move |(c, to)| (from as u64, *to as u64, c.to_string()))));
-
-        Automaton {
-            matrices,
-            size,
-            initial_states,
-            final_states
-        }
-    }
-
-    fn from_edges<I : Iterator<Item = Edge>>(size: u64, edges_it: I) -> HashMap<String, BaseTypeMatrix<bool>> {
+    fn from_edges<I, IS, IF>(size: u64, edges_it: I, initials: IS, finals: IF) -> Automaton
+        where I : Iterator<Item = Edge>, IS : Iterator<Item = u64>, IF: Iterator<Item = u64> {
         let mut label_paths = HashMap::<String, (Vec<u64>, Vec<u64>)>::new();
+        let mut size = size;
 
         edges_it.for_each(|a| {
             let (from, to, label) = a;
+            if from >= size { size = from + 1 }
+            if to >= size { size = to + 1 }
 
             let (from_vertices, to_vertices) = label_paths.entry(label.to_string()).or_insert_with(|| (Vec::new(), Vec::new()));
             from_vertices.push(from);
@@ -154,7 +118,12 @@ impl Automaton {
             matrices.insert(label, matrix);
         }
 
-        matrices
+        Automaton {
+            matrices,
+            size,
+            initial_states: initials.collect(),
+            final_states: finals.collect()
+        }
     }
 
     pub fn intersection(&self, b: &Automaton) -> Automaton {
@@ -220,6 +189,70 @@ impl Automaton {
         )
     }
 
+    pub fn hellings(&self, cfg: ContextFreeGrammar) -> Vec<Endpoints> {
+        let mut r = HashSet::<(Endpoints, &String)>::new();
+        let mut m = VecDeque::<(Endpoints, &String)>::new();
+
+        if cfg.produces_epsilon {
+            for v in 0..self.size {
+                let p = ((v, v), &cfg.initial);
+                r.insert(p.clone());
+                m.push_back(p);
+            }
+        }
+
+        for (label, matrix) in &self.matrices {
+            if let Some(vars) = cfg.get_producers(&label) {
+                let pairs = Automaton::extract_pairs(&matrix, |_, _| true);
+
+                for var in vars {
+                    for (from, to) in &pairs {
+                        let p = ((*from, *to), var);
+                        if r.insert(p.clone()) {
+                            m.push_back(p);
+                        }
+                    }
+                }
+            }
+        }
+
+        while !m.is_empty() {
+            let ((v, u), n_i) = m.pop_front().unwrap();
+            let mut new = HashSet::<(Endpoints, &String)>::new();
+
+            r.iter().filter(|((_, x), _)| *x == v)
+                .for_each(|((v_, _), n_j)| {
+                    if let Some(n_ks) = cfg.get_producers_by_pair(n_j, n_i) {
+                        for n_k in n_ks {
+                            let p = ((*v_, u), n_k);
+                            if !r.contains(&p) {
+                                new.insert(p);
+                            }
+                        }
+                    }
+                });
+
+            r.iter().filter(|((x, _), _)| *x == u)
+                .for_each(|((_, v_), n_j)| {
+                    if let Some(n_ks) = cfg.get_producers_by_pair(n_i, n_j) {
+                        for n_k in n_ks {
+                            let p = ((v, *v_), n_k);
+                            if !r.contains(&p) {
+                                new.insert(p);
+                            }
+                        }
+                    }
+                });
+
+            for n in new {
+                r.insert(n.clone());
+                m.push_back(n);
+            }
+        }
+
+        r.into_iter().filter(|(_, s)| s == &&cfg.initial).map(|(p, _)| p).collect()
+    }
+
     pub fn accepts<S: AsRef<str>>(&self, word: S) -> bool {
         let word = word.as_ref();
         self.initial_states.iter().any(|start| self.walk(*start, word))
@@ -246,7 +279,7 @@ impl Automaton {
 
     pub(crate) fn extract_pairs<F: Fn(&u64, &u64) -> bool>(m: &BaseTypeMatrix<bool>, filter: F) -> Vec<Endpoints> {
         let (froms, tos, _) = m.extract_tuples();
-        froms.iter().zip(tos.iter()).filter(|(from, to)| filter(from, to)).map(|(from, to)| (*from, *to)).collect()
+        froms.into_iter().zip(tos.into_iter()).filter(|(from, to)| filter(&from, &to)).map(|(from, to)| (from, to)).collect()
     }
 
     pub(crate) fn adjacency_matrix(&self) -> BaseTypeMatrix<bool> {
