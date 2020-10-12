@@ -27,6 +27,7 @@ jobs:
           build/home
           build/include
           ~/.cargo
+          ~/.local
         key: ${{ runner.os }}-cache
     - name: Build
       run: make
