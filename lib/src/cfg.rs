@@ -95,71 +95,30 @@ impl ContextFreeGrammar {
         if word.is_empty() {
             return self.produces_epsilon
         }
-        let mut m = vec!(vec!(HashSet::<String>::new(); word.len()); word.len());
+        let mut m = vec!(vec!(HashSet::<&String>::new(); word.len()); word.len());
         word.iter().enumerate().for_each(|(i, char)| {
             if let Some(vars) = self.get_producers(char) {
                 let set = &mut m[i][i];
-                vars.iter().cloned().for_each(|x| { set.insert(x); });
+                vars.iter().for_each(|x| { set.insert(x); });
             }
         });
 
         for length in 1..word.len() {
             for pos in 0..(word.len() - length) {
-                let mut for_insert = HashSet::<String>::new();
+                let mut for_insert = HashSet::<&String>::new();
                 for split in 0..(word.len() - pos) {
                     for left in &m[pos][pos + split] {
                         for right in &m[pos + split + 1][pos + length] {
                             if let Some(vars) = self.get_producers_by_pair(left, right) {
-                                vars.iter().cloned().for_each(|x| { for_insert.insert(x); });
+                                vars.iter().for_each(|x| { for_insert.insert(x); });
                             }
                         }
                     }
                 }
                 let set = &mut m[pos][pos + length];
-                for_insert.iter().cloned().for_each(|x| { set.insert(x); });
+                for_insert.iter().for_each(|x| { set.insert(x); });
             }
         }
         return m[0][word.len() - 1].contains(&self.initial);
     }
 }
-
-
-#[cfg(test)]
-mod tests {
-    use crate::cfg::{ContextFreeGrammar};
-    use anyhow::Result;
-
-    #[test]
-    fn empty() -> Result<()> {
-        let cfg = ContextFreeGrammar::from_text("S ->")?;
-
-        assert!(cfg.cyk(&[]));
-        assert!(!cfg.cyk(&[&"a".to_string()]));
-        Ok(())
-    }
-
-    #[test]
-    fn test() -> Result<()> {
-        let cfg = ContextFreeGrammar::from_text(r#"
-            S -> S a S
-            S -> S b S
-            S -> c S c
-            S -> n
-        "#)?;
-
-        let ref a = String::from("a");
-        let ref b = String::from("b");
-        let ref c = String::from("c");
-        let ref n = String::from("n");
-
-        assert!(!cfg.cyk(&[]));
-        assert!(cfg.cyk(&[c, n, a, n, c, b, n]));
-        assert!(cfg.cyk(&[n, a, n, b, n]));
-        assert!(cfg.cyk(&[n, a, n, a, n, a, n]));
-        assert!(cfg.cyk(&[n, a, c, n, b, n, c, a, n]));
-
-        Ok(())
-    }
-}
-
-

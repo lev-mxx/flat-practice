@@ -10,4 +10,4 @@ edition = "2018"
 pyo3 = "0.12.1"
 anyhow = "1.0.32"
 graphblas = { path = "graphblas" }
-
+paste = "1.0.1"
