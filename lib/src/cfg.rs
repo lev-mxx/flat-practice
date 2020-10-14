@@ -192,4 +192,64 @@ impl Graph {
 
         r.into_iter().filter(|(_, s)| s == &&cfg.initial).map(|(p, _)| p).collect()
     }
+
+    pub fn cfpq_matrix_product(&self, cfg: &ContextFreeGrammar) -> Vec<Ends> {
+        let mut matrices = HashMap::<&String, BooleanMatrix>::new();
+        for (body, heads) in &cfg.unit_from_variable {
+            if let Some(body_matrix) = self.matrices.get(body) {
+                for head in heads {
+                    let matrix = matrices.entry(head).or_insert_with(|| Matrix::<bool>::new(self.size, self.size));
+                    matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), body_matrix);
+                }
+            }
+        }
+
+        if cfg.produces_epsilon {
+            let matrix = matrices.entry(&cfg.initial).or_insert_with(|| Matrix::<bool>::new(self.size, self.size));
+            for i in 0..self.size {
+                matrix.insert(i, i, true);
+            }
+        }
+
+        let mut changing = true;
+        while changing {
+            changing = false;
+            for (left, map) in &cfg.pair_from_variable {
+                for (right, heads) in map {
+                    for head in heads {
+                        let matrix = matrices.remove(head);
+                        let mut matrix = matrix.unwrap_or_else(|| Matrix::<bool>::new(self.size, self.size));
+
+                        let n = matrix.nvals();
+                        if left == head && right == head {
+                            let production = Matrix::<bool>::mxm(Semiring::<bool>::lor_land(), &matrix, &matrix);
+                            matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), &production);
+                        } else if left == head {
+                            if let Some(right_matrix) = matrices.get(right) {
+                                let production = Matrix::<bool>::mxm(Semiring::<bool>::lor_land(), &matrix, &right_matrix);
+                                matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), &production);
+                            }
+                        } else if right == head {
+                            if let Some(left_matrix) = matrices.get(left) {
+                                let production = Matrix::<bool>::mxm(Semiring::<bool>::lor_land(), &left_matrix, &matrix);
+                                matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), &production);
+                            }
+                        }else if let Some(left_matrix) = matrices.get(left) {
+                            if let Some(right_matrix) = matrices.get(right) {
+                                matrix.accumulate_mxm(BinaryOp::<bool, bool, bool>::lor(), Semiring::<bool>::lor_land(), left_matrix, right_matrix);
+                            }
+                        }
+                        changing |= n != matrix.nvals();
+                        matrices.insert(head, matrix);
+                    }
+                }
+            }
+        }
+
+        if let Some(matrix) = matrices.get(&cfg.initial) {
+            matrix.extract_pairs()
+        } else {
+            Vec::new()
+        }
+    }
 }
