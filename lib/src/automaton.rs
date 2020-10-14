@@ -196,7 +196,7 @@ impl Automaton {
         if cfg.produces_epsilon {
             for v in 0..self.size {
                 let p = ((v, v), &cfg.initial);
-                r.insert(p.clone());
+                r.insert(p);
                 m.push_back(p);
             }
         }
@@ -208,7 +208,7 @@ impl Automaton {
                 for var in vars {
                     for (from, to) in &pairs {
                         let p = ((*from, *to), var);
-                        if r.insert(p.clone()) {
+                        if r.insert(p) {
                             m.push_back(p);
                         }
                     }
@@ -220,8 +220,8 @@ impl Automaton {
             let ((v, u), n_i) = m.pop_front().unwrap();
             let mut new = HashSet::<(Endpoints, &String)>::new();
 
-            r.iter().filter(|((_, x), _)| *x == v)
-                .for_each(|((v_, _), n_j)| {
+            for ((v_, u_), n_j) in &r {
+                if *u_ == v {
                     if let Some(n_ks) = cfg.get_producers_by_pair(n_j, n_i) {
                         for n_k in n_ks {
                             let p = ((*v_, u), n_k);
@@ -230,22 +230,22 @@ impl Automaton {
                             }
                         }
                     }
-                });
+                }
 
-            r.iter().filter(|((x, _), _)| *x == u)
-                .for_each(|((_, v_), n_j)| {
+                if *v_ == u {
                     if let Some(n_ks) = cfg.get_producers_by_pair(n_i, n_j) {
                         for n_k in n_ks {
-                            let p = ((v, *v_), n_k);
+                            let p = ((v, *u_), n_k);
                             if !r.contains(&p) {
                                 new.insert(p);
                             }
                         }
                     }
-                });
+                }
+            }
 
             for n in new {
-                r.insert(n.clone());
+                r.insert(n);
                 m.push_back(n);
             }
         }
