@@ -1,9 +1,11 @@
-
 use std::env;
-use flat_practice_lib::automaton::Automaton;
-use anyhow::Result;
-use flat_practice_lib::measure::write_csv;
 use std::str::FromStr;
+
+use anyhow::Result;
+
+use flat_practice_lib::dfa::Dfa;
+use flat_practice_lib::graph::Graph;
+use flat_practice_lib::measure::write_csv;
 
 static HELP: &'static str = "Arguments: (stats *path to graph file* *path to request file*) | (measure *path*)";
 
@@ -30,10 +32,9 @@ fn main() -> Result<()> {
                 panic!(HELP);
             };
 
-            let graph = Automaton::read_graph(graph_path)?;
-            let regex = Automaton::read_regex(regex_path)?;
-            let intersection = graph.intersection(&regex);
-            println!("{:?}", intersection.get_stats());
+            let graph = Graph::read_from(graph_path)?;
+            let regex = Dfa::read_regex_from(regex_path)?;
+            println!("{:?}", graph.kronecker(&regex.graph).get_stats());
         },
         "measure" => {
             let path = if let Some(arg) = args.next() {

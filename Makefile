@@ -5,9 +5,10 @@ build: dependencies
 	source make/set_paths.bash && cargo build
 
 test: dependencies
-	source make/set_paths.bash && (cd lib/graphblas && cargo test) && (cd lib && cargo test) && cargo test
+	source make/set_paths.bash && (cd lib && cargo test)
 
 dependencies: build/rust build/graphblas
+	pip3 install pyformlang --user -qq
 
 build/rust:
 	source make/get_rust.bash && touch $@
