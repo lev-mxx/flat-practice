@@ -103,8 +103,6 @@ impl Rfa {
 impl Graph {
 
     pub fn cfpq_tensor_product(&self, rfa: &Rfa) -> Vec<Ends> {
-        println!("{:?}", self);
-        println!("{:?}", rfa);
         let mut m2 = self.clone();
 
         for nonterminal in &rfa.with_epsilon {
@@ -118,14 +116,12 @@ impl Graph {
         while changing {
             changing = false;
             let intersection = rfa.dfa.graph.kronecker(&m2);
-            println!("{:?}", intersection.reachable_pairs());
             for (from, to) in intersection.reachable_pairs() {
                 let ref rfa_c = (from / self.size, to / self.size);
                 let (rfa_from, rfa_to) = rfa_c;
                 if  rfa.dfa.initials.contains(rfa_from) && rfa.dfa.finals.contains(rfa_to) {
                     let (from, to) = (from % self.size, to % self.size);
                     let nt = rfa.nonterminals.get(rfa_c).unwrap();
-                    println!("{} {} {}", from, to, nt);
                     let matrix = m2.get_mut(nt.clone());
                     if let None = matrix.get(from, to) {
                         matrix.insert(from, to, true);
