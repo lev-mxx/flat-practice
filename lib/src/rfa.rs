@@ -7,15 +7,15 @@ use std::str::from_utf8;
 use anyhow::Result;
 use pyo3::Python;
 use pyo3::types::PyModule;
+
 use graphblas::*;
 
-use crate::automaton::{Automaton};
-use crate::graph::{Graph, Ends, Edge, ExtractPairs};
-
+use crate::dfa::Dfa;
+use crate::graph::{Edge, Ends, ExtractPairs, Graph};
 
 #[derive(Debug)]
 pub struct Rfa {
-    pub(crate) dfa: Automaton,
+    pub(crate) dfa: Dfa,
     pub(crate) nonterminals: HashMap<(u64, u64), String>,
     pub(crate) with_epsilon: HashSet<String>,
     pub(crate) initial: String
@@ -77,7 +77,7 @@ impl Rfa {
             }
         }
 
-        let dfa = Automaton {
+        let dfa = Dfa {
             graph: Graph::build(edges.as_slice()),
             initials,
             finals,

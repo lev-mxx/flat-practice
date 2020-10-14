@@ -1,12 +1,14 @@
-use anyhow::{Result, Error};
-use std::path::Path;
-use std::fs::File;
-use std::io::{BufReader, BufRead};
-use std::str::FromStr;
-use std::collections::{HashMap, HashSet};
-use graphblas::*;
 use std::borrow::Borrow;
+use std::collections::{HashMap, HashSet};
+use std::fs::File;
 use std::hash::Hash;
+use std::io::{BufRead, BufReader};
+use std::path::Path;
+use std::str::FromStr;
+
+use anyhow::{Error, Result};
+
+use graphblas::*;
 
 pub type Ends = (u64, u64);
 pub type Edge = (u64, u64, String);

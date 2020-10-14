@@ -1,9 +1,13 @@
 use std::collections::HashSet;
-use flat_practice_lib::automaton::*;
-use flat_practice_lib::graph::{Ends, Graph};
+
 use anyhow::Result;
 
-fn assert_reachable(a: &Graph, b: &Automaton, pairs: &[Ends]) {
+use flat_practice_lib::dfa::*;
+use flat_practice_lib::graph::{Ends, Graph};
+
+mod util;
+
+fn assert_reachable(a: &Graph, b: &Dfa, pairs: &[Ends]) {
     let res = a.rpq(b);
     let actual: HashSet<&Ends> = res.iter().collect();
     let expected: HashSet<&Ends> = pairs.iter().collect();
@@ -19,7 +23,7 @@ fn test_reachable() -> Result<()> {
         (2, 3, "a".to_string()),
         (3, 1, "a".to_string()),
     ]);
-    let b = Automaton::from_regex("a*")?;
+    let b = Dfa::from_regex("a*")?;
 
     assert_reachable(&a, &b,
         &[
@@ -38,7 +42,7 @@ fn test_reachable() -> Result<()> {
 #[test]
 fn test_intersection_empty() -> Result<()> {
     let a = Graph::build(&[(0, 0, "a".to_string())]);
-    let b = Automaton {
+    let b = Dfa {
         graph: Graph::build(&[(1, 1, "b".to_string())]),
         initials: [0, 1].iter().cloned().collect(),
         finals: [0, 1].iter().cloned().collect()
@@ -50,7 +54,7 @@ fn test_intersection_empty() -> Result<()> {
 
 #[test]
 fn test_regex() -> Result<()> {
-    let ab = Automaton::from_regex("(a|b)*")?;
+    let ab = Dfa::from_regex("(a|b)*")?;
 
     assert!(ab.accepts(&["a", "a"]));
     assert!(ab.accepts(&["b", "b"]));
@@ -62,8 +66,8 @@ fn test_regex() -> Result<()> {
 
 #[test]
 fn test_intersection() -> Result<()> {
-    let ab = Automaton::from_regex("(a|b)*")?;
-    let bc = Automaton::from_regex("(c|b)*")?;
+    let ab = Dfa::from_regex("(a|b)*")?;
+    let bc = Dfa::from_regex("(c|b)*")?;
     let bi = ab.intersection(&bc);
 
     assert!(bi.accepts(&["b", "b"]));

@@ -9,46 +9,46 @@ use anyhow::{Error, Result};
 use pyo3::Python;
 use pyo3::types::PyModule;
 
-use crate::graph::{Edge, ExtractPairs, Graph, Ends};
+use crate::graph::{Edge, Ends, ExtractPairs, Graph};
 
 #[derive(Debug, Clone)]
-pub struct Automaton {
+pub struct Dfa {
     pub graph: Graph,
     pub initials: HashSet<u64>,
     pub finals: HashSet<u64>,
 }
 
-impl Automaton {
-    pub fn read_regex_from<P: AsRef<Path>>(path: P) -> Result<Automaton> {
+impl Dfa {
+    pub fn read_regex_from<P: AsRef<Path>>(path: P) -> Result<Dfa> {
         let file = File::open(path)?;
         let mut reader = BufReader::new(file);
         let mut regex = String::new();
         reader.read_to_string(&mut regex)?;
-        Automaton::from_regex(regex.as_str())
+        Dfa::from_regex(regex.as_str())
     }
 
-    pub fn read_query_from<P: AsRef<Path>>(path: P) -> Result<Automaton> {
+    pub fn read_query_from<P: AsRef<Path>>(path: P) -> Result<Dfa> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
         let line = reader.lines().skip(2).next().ok_or_else(|| Error::msg("invalid format"))??;
-        Automaton::from_regex(line.as_str())
+        Dfa::from_regex(line.as_str())
     }
 
-    pub fn from_regex(regex: &str) -> Result<Automaton> {
+    pub fn from_regex(regex: &str) -> Result<Dfa> {
         let (initial, finals, edges) = Python::with_gil(|py| -> Result<(u64, Vec<u64>, Vec<Edge>)> {
             let module = PyModule::from_code(py, from_utf8(include_bytes!("py/regex_to_edges.py"))?, "a.py", "a")?;
             let py_res: (u64, Vec<u64>, Vec<(u64, u64, String)>) = module.call1("regex_to_edges", (regex,))?.extract()?;
             Ok(py_res)
         })?;
 
-        Ok(Automaton {
+        Ok(Dfa {
             graph: Graph::build(edges.as_slice()),
             initials: [initial].iter().cloned().collect(),
             finals: finals.into_iter().collect(),
         })
     }
 
-    pub fn intersection(&self, b: &Automaton) -> Automaton {
+    pub fn intersection(&self, b: &Dfa) -> Dfa {
         let graph = self.graph.kronecker(&b.graph);
         let mut initials = HashSet::with_capacity(self.initials.len() * b.initials.len());
 
@@ -65,7 +65,7 @@ impl Automaton {
             }
         }
 
-        Automaton {
+        Dfa {
             graph,
             initials,
             finals
@@ -98,7 +98,7 @@ impl Automaton {
 
 impl Graph {
 
-    pub fn rpq(&self, request: &Automaton) -> HashSet<Ends> {
+    pub fn rpq(&self, request: &Dfa) -> HashSet<Ends> {
         let g = self.kronecker(&request.graph);
         let size = request.graph.size;
         g.reachable_pairs_filter(|(from, to)| {

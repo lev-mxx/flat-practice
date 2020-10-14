@@ -1,11 +1,13 @@
-
-use std::time::Instant;
-use crate::automaton::*;
 use std::collections::HashMap;
-use graphblas::BaseTypeMatrix;
-use anyhow::Result;
 use std::io::{BufWriter, Write};
-use crate::graph::{Graph, ExtractPairs};
+use std::time::Instant;
+
+use anyhow::Result;
+
+use graphblas::BaseTypeMatrix;
+
+use crate::dfa::*;
+use crate::graph::{ExtractPairs, Graph};
 
 static LIST: &[(&str, fn(&mut BaseTypeMatrix<bool>))] = &[
     ("square", Graph::close_with_squaring),
@@ -27,7 +29,7 @@ pub fn write_csv(path: String, csv_path: String, iterations: u64) -> Result<()> 
             for query_file in std::fs::read_dir(class_dir.path())? {
                 let query_file = query_file?;
                 let query_name = query_file.file_name().to_str().unwrap().to_string();
-                let query = Automaton::read_query_from(query_file.path())?;
+                let query = Dfa::read_query_from(query_file.path())?;
 
                 for _ in 0..iterations {
                     let res = measure(&graph, &query);
@@ -48,7 +50,7 @@ pub fn write_csv(path: String, csv_path: String, iterations: u64) -> Result<()> 
     Ok(())
 }
 
-fn measure(graph: &Graph, request: &Automaton) -> (u128, HashMap<String, (u128, u128, usize)>) {
+fn measure(graph: &Graph, request: &Dfa) -> (u128, HashMap<String, (u128, u128, usize)>) {
     let mut map = HashMap::<String, (u128, u128, usize)>::new();
 
     let time = Instant::now();

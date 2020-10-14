@@ -3,8 +3,8 @@ use flat_practice_lib::cfg::ContextFreeGrammar;
 use anyhow::Result;
 use std::collections::HashSet;
 use std::str::from_utf8;
-use flat_practice_lib::rfa::Rfa;
 use flat_practice_lib::graph::{Ends, Graph};
+use flat_practice_lib::rfa::Rfa;
 
 mod util;
 
