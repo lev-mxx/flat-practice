@@ -6,4 +6,4 @@ def parse_cfg(text):
     produces_epsilon = cfg.generate_epsilon()
     cfg = cfg.to_normal_form()
     productions = list(map(lambda p: (p.head.value, list(map(lambda x: x.value, p.body))), cfg.productions))
-    return str(cfg.start_symbol), productions, produces_epsilon
+    return cfg.start_symbol.value, productions, produces_epsilon

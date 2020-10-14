@@ -1,28 +1,27 @@
 use std::collections::HashSet;
 use flat_practice_lib::automaton::*;
+use flat_practice_lib::graph::{Ends, Graph};
+use anyhow::Result;
 
-fn assert_reachable(g: &Automaton, pairs: &[Endpoints]) {
-    let actual: HashSet<Endpoints> = g.reachable_pairs_from_to(&g.initial_states, &g.final_states).iter().cloned().collect();
-
-    let expected: HashSet<Endpoints> = pairs.iter().cloned().collect();
+fn assert_reachable(a: &Graph, b: &Automaton, pairs: &[Ends]) {
+    let res = a.rpq(b);
+    let actual: HashSet<&Ends> = res.iter().collect();
+    let expected: HashSet<&Ends> = pairs.iter().collect();
 
     assert_eq!(expected, actual);
 }
 
 #[test]
-fn test_empty_reachability() {
-    assert_reachable(&Automaton::build_graph(4, &[]), &[]);
-}
+fn test_reachable() -> Result<()> {
+    let a = &Graph::build(&[
+        (0, 0, "a".to_string()),
+        (0, 2, "a".to_string()),
+        (2, 3, "a".to_string()),
+        (3, 1, "a".to_string()),
+    ]);
+    let b = Automaton::from_regex("a*")?;
 
-#[test]
-fn test_reachable() {
-    assert_reachable(
-        &Automaton::build_graph(4, &[
-            (0, 0, "a".to_string()),
-            (0, 2, "a".to_string()),
-            (2, 3, "a".to_string()),
-            (3, 1, "a".to_string()),
-        ]),
+    assert_reachable(&a, &b,
         &[
             (0, 0),
             (0, 1),
@@ -33,37 +32,43 @@ fn test_reachable() {
             (3, 1),
         ]
     );
+    Ok(())
 }
 
 #[test]
-fn test_intersection_empty() {
-    let empty = Automaton::build_graph(2, &[]);
-    let not_empty = Automaton::build_graph(2, &[
-        (0, 1, "a".to_string()),
-        (1, 1, "a".to_string()),
-    ]);
+fn test_intersection_empty() -> Result<()> {
+    let a = Graph::build(&[(0, 0, "a".to_string())]);
+    let b = Automaton {
+        graph: Graph::build(&[(1, 1, "b".to_string())]),
+        initials: [0, 1].iter().cloned().collect(),
+        finals: [0, 1].iter().cloned().collect()
+    };
 
-    let intersection = empty.intersection(&not_empty);
-    assert_reachable(&intersection, &[]);
+    assert_reachable(&a, &b,&[]);
+    Ok(())
 }
 
 #[test]
-fn test_regex() {
-    let ab = Automaton::from_regex("(a|b)*").unwrap();
+fn test_regex() -> Result<()> {
+    let ab = Automaton::from_regex("(a|b)*")?;
 
-    assert!(ab.accepts("aa"));
-    assert!(ab.accepts("bb"));
-    assert!(ab.accepts("abab"));
-    assert!(!ab.accepts("cc"));
+    assert!(ab.accepts(&["a", "a"]));
+    assert!(ab.accepts(&["b", "b"]));
+    assert!(ab.accepts(&["a", "b", "a", "b"]));
+    assert!(!ab.accepts(&["c", "c"]));
+
+    Ok(())
 }
 
 #[test]
-fn test_intersection() {
-    let ab = Automaton::from_regex("(a|b)*").unwrap();
-    let bc = Automaton::from_regex("(c|b)*").unwrap();
+fn test_intersection() -> Result<()> {
+    let ab = Automaton::from_regex("(a|b)*")?;
+    let bc = Automaton::from_regex("(c|b)*")?;
     let bi = ab.intersection(&bc);
 
-    assert!(bi.accepts("bb"));
-    assert!(!bi.accepts("aa"));
-    assert!(!bi.accepts("cc"));
+    assert!(bi.accepts(&["b", "b"]));
+    assert!(!bi.accepts(&["a", "a"]));
+    assert!(!ab.accepts(&["c", "c"]));
+
+    Ok(())
 }

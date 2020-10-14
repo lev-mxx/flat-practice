@@ -1,17 +1,22 @@
-use std::path::Path;
-use anyhow::{Result};
-use pyo3::types::PyModule;
-use std::str::from_utf8;
-use pyo3::Python;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{BufRead, Write};
-use std::collections::{HashMap, HashSet};
+use std::path::Path;
+use std::str::from_utf8;
+
+use anyhow::Result;
+use pyo3::Python;
+use pyo3::types::PyModule;
+
+use graphblas::*;
+
+use crate::graph::{BooleanMatrix, Ends, ExtractPairs, Graph};
 
 #[derive(Debug)]
 pub struct ContextFreeGrammar {
     pub(crate) initial: String,
     pub(crate) produces_epsilon: bool,
-    terminal_from_variable: HashMap<String, HashSet<String>>,
-    pair_from_variable: HashMap<String, HashMap<String, HashSet<String>>>,
+    pub(crate) unit_from_variable: HashMap<String, HashSet<String>>,
+    pub(crate) pair_from_variable: HashMap<String, HashMap<String, HashSet<String>>>,
 }
 
 impl ContextFreeGrammar {
@@ -21,7 +26,7 @@ impl ContextFreeGrammar {
     }
 
     pub(crate) fn get_producers(&self, p: &String) -> Option<&HashSet<String>> {
-        self.terminal_from_variable.get(p)
+        self.unit_from_variable.get(p)
     }
 
     pub fn read<P: AsRef<Path>>(path: P) -> Result<ContextFreeGrammar> {
@@ -48,13 +53,13 @@ impl ContextFreeGrammar {
     }
 
     pub fn from_text(text: &str) -> Result<ContextFreeGrammar> {
-        let (initial, productions, generate_epsilon) = Python::with_gil(|py| -> Result<(String, Vec<(String, Vec<String>)>, bool)> {
+        let (initial, productions, produces_epsilon) = Python::with_gil(|py| -> Result<(String, Vec<(String, Vec<String>)>, bool)> {
             let module = PyModule::from_code(py, from_utf8(include_bytes!("py/parse_cfg.py"))?, "a.py", "a")?;
             Ok(module.call1("parse_cfg", (text,))?.extract()?)
         })?;
 
-        let mut terminal_from_variable = HashMap::<String, HashSet<String>>::new();
-        let mut variables_from_variable = HashMap::<String, HashMap<String, HashSet<String>>>::new();
+        let mut unit_from_variable = HashMap::<String, HashSet<String>>::new();
+        let mut pair_from_variable = HashMap::<String, HashMap<String, HashSet<String>>>::new();
 
         for (head, body) in productions {
             let mut first = None;
@@ -69,14 +74,14 @@ impl ContextFreeGrammar {
 
             let first = first.unwrap();
             if let Some(second) = second {
-                let set = variables_from_variable
+                let set = pair_from_variable
                     .entry(first)
                     .or_insert_with(|| HashMap::new())
                     .entry(second)
                     .or_insert_with(|| HashSet::new());
                 set.insert(head);
             } else {
-                let set = terminal_from_variable
+                let set = unit_from_variable
                     .entry(first)
                     .or_insert_with(|| HashSet::new());
                 set.insert(head);
@@ -85,9 +90,9 @@ impl ContextFreeGrammar {
 
         Ok(ContextFreeGrammar {
             initial,
-            produces_epsilon: generate_epsilon,
-            terminal_from_variable,
-            pair_from_variable: variables_from_variable,
+            produces_epsilon,
+            unit_from_variable,
+            pair_from_variable,
         })
     }
 
@@ -120,5 +125,131 @@ impl ContextFreeGrammar {
             }
         }
         return m[0][word.len() - 1].contains(&self.initial);
+    }
+}
+
+impl Graph {
+    pub fn cfpq_hellings(&self, cfg: &ContextFreeGrammar) -> Vec<Ends> {
+        let mut r = HashSet::<(Ends, &String)>::new();
+        let mut m = VecDeque::<(Ends, &String)>::new();
+
+        if cfg.produces_epsilon {
+            for v in 0..self.size {
+                let p = ((v, v), &cfg.initial);
+                r.insert(p);
+                m.push_back(p);
+            }
+        }
+
+        for (label, matrix) in &self.matrices {
+            if let Some(vars) = cfg.get_producers(&label) {
+                let pairs = matrix.extract_pairs();
+
+                for var in vars {
+                    for (from, to) in &pairs {
+                        let p = ((*from, *to), var);
+                        if r.insert(p) {
+                            m.push_back(p);
+                        }
+                    }
+                }
+            }
+        }
+
+        while !m.is_empty() {
+            let ((v, u), n_i) = m.pop_front().unwrap();
+            let mut new = HashSet::<(Ends, &String)>::new();
+
+            for ((v_, u_), n_j) in &r {
+                if *u_ == v {
+                    if let Some(n_ks) = cfg.get_producers_by_pair(n_j, n_i) {
+                        for n_k in n_ks {
+                            let p = ((*v_, u), n_k);
+                            if !r.contains(&p) {
+                                new.insert(p);
+                            }
+                        }
+                    }
+                }
+
+                if *v_ == u {
+                    if let Some(n_ks) = cfg.get_producers_by_pair(n_i, n_j) {
+                        for n_k in n_ks {
+                            let p = ((v, *u_), n_k);
+                            if !r.contains(&p) {
+                                new.insert(p);
+                            }
+                        }
+                    }
+                }
+            }
+
+            for n in new {
+                r.insert(n);
+                m.push_back(n);
+            }
+        }
+
+        r.into_iter().filter(|(_, s)| s == &&cfg.initial).map(|(p, _)| p).collect()
+    }
+
+    pub fn cfpq_matrix_product(&self, cfg: &ContextFreeGrammar) -> Vec<Ends> {
+        let mut matrices = HashMap::<&String, BooleanMatrix>::new();
+        for (body, heads) in &cfg.unit_from_variable {
+            if let Some(body_matrix) = self.matrices.get(body) {
+                for head in heads {
+                    let matrix = matrices.entry(head).or_insert_with(|| Matrix::<bool>::new(self.size, self.size));
+                    matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), body_matrix);
+                }
+            }
+        }
+
+        if cfg.produces_epsilon {
+            let matrix = matrices.entry(&cfg.initial).or_insert_with(|| Matrix::<bool>::new(self.size, self.size));
+            for i in 0..self.size {
+                matrix.insert(i, i, true);
+            }
+        }
+
+        let mut changing = true;
+        while changing {
+            changing = false;
+            for (left, map) in &cfg.pair_from_variable {
+                for (right, heads) in map {
+                    for head in heads {
+                        let matrix = matrices.remove(head);
+                        let mut matrix = matrix.unwrap_or_else(|| Matrix::<bool>::new(self.size, self.size));
+
+                        let n = matrix.nvals();
+                        if left == head && right == head {
+                            let production = Matrix::<bool>::mxm(Semiring::<bool>::lor_land(), &matrix, &matrix);
+                            matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), &production);
+                        } else if left == head {
+                            if let Some(right_matrix) = matrices.get(right) {
+                                let production = Matrix::<bool>::mxm(Semiring::<bool>::lor_land(), &matrix, &right_matrix);
+                                matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), &production);
+                            }
+                        } else if right == head {
+                            if let Some(left_matrix) = matrices.get(left) {
+                                let production = Matrix::<bool>::mxm(Semiring::<bool>::lor_land(), &left_matrix, &matrix);
+                                matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), &production);
+                            }
+                        }else if let Some(left_matrix) = matrices.get(left) {
+                            if let Some(right_matrix) = matrices.get(right) {
+                                matrix.accumulate_mxm(BinaryOp::<bool, bool, bool>::lor(), Semiring::<bool>::lor_land(), left_matrix, right_matrix);
+                            }
+                        }
+                        changing |= n != matrix.nvals();
+                        matrices.insert(head, matrix);
+                    }
+                }
+            }
+        }
+
+        if let Some(matrix) = matrices.get(&cfg.initial) {
+            matrix.extract_pairs()
+        } else {
+            Vec::new()
+        }
     }
 }
