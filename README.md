@@ -3,3 +3,44 @@
 
 ## Run tests
 ```make test```
+
+## Request syntax
+Example:
+```
+connect to path.db;
+
+define var1 as "a"*"b"?;
+define var2 as var1 | "c";
+
+get edges from graph;
+get count of edges
+    where (from, to, label) satify (is_start from or is_final to) and label is "label"
+    from (graph & var)
+        with initials as [1, 2, 3] and finals as [6..90]  
+```
+
+`script := (_connect_expr_ | _define_expr_ | _get_expr_)*`
+
+`connect_expt := connect to _ident_`
+
+`define_expr := define _ident_ as _pattern_`
+
+`get_expr := get _obj_expr_ from _graph_expr_`
+
+`obj_expr := _list_expr_ | count of _list_expr_`
+
+`list_expr := edges | _list_expr_ where (_ident_, _ident_, _ident_) satisfy _bool_expr_`
+
+`bool_expr := is_final ident | is_start ident | ident is string | _bool_expr_ _op_ _bool_expr_ | not bool_expr`
+
+`graph_expr := ident | pattern | graph_expr & graph_expr | graph_expr with initials as set and finals as set`
+
+`set := [_number_, ...] | [_number_.._number_]`
+
+`pattern := (_pattern_elem_)*`
+
+`pattern_elem := epsilon | _string_ | _ident_ | _pattern_elem_ '*' | _pattern_elem_ '?' | _pattern_elem_ '+' | '(' _pattern_elem_ ')'`
+### Check syntax
+```
+cargo run check *file*
+```
