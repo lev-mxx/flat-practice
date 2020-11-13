@@ -1,5 +1,5 @@
 
-use flat_practice_lib::cfg::ContextFreeGrammar;
+use flat_practice_lib::cfg::{ContextFreeGrammar, ContextFreeResult};
 use anyhow::Result;
 use std::collections::HashSet;
 use std::str::from_utf8;
@@ -32,17 +32,17 @@ macro_rules! test {
 
 fn hellings(text: &str, graph: &Graph) -> Result<Vec<Ends>> {
     let grammar = ContextFreeGrammar::from_text(text)?;
-    Ok(graph.cfpq_hellings(&grammar))
+    Ok(graph.cfpq_hellings(&grammar).reachable_edges("S"))
 }
 
 fn matrices(text: &str, graph: &Graph) -> Result<Vec<Ends>> {
     let grammar = ContextFreeGrammar::from_text(text)?;
-    Ok(graph.cfpq_matrix_product(&grammar))
+    Ok(graph.cfpq_matrix_product(&grammar).reachable_edges("S"))
 }
 
 fn tensors(text: &str, graph: &Graph) -> Result<Vec<Ends>> {
     let rfa = Rfa::from_text(text)?;
-    Ok(graph.cfpq_tensor_product(&rfa))
+    Ok(graph.cfpq_tensor_product(&rfa).reachable_edges("S"))
 }
 
 test!(hellings, "graph1", "epsilon", &[(0, 0), (1, 1)]);

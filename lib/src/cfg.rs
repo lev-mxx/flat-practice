@@ -13,7 +13,8 @@ use crate::graph::{BooleanMatrix, Ends, ExtractPairs, Graph};
 
 #[derive(Debug)]
 pub struct ContextFreeGrammar {
-    pub(crate) initial: String,
+    pub initial: String,
+    pub(crate) nonterminals: HashSet<String>,
     pub(crate) produces_epsilon: bool,
     pub(crate) unit_from_variable: HashMap<String, HashSet<String>>,
     pub(crate) pair_from_variable: HashMap<String, HashMap<String, HashSet<String>>>,
@@ -21,7 +22,7 @@ pub struct ContextFreeGrammar {
 
 impl ContextFreeGrammar {
 
-    pub(crate) fn get_producers_by_pair(&self, p1: &String, p2: &String) -> Option<&HashSet<String>>  {
+    pub(crate) fn get_producers_by_pair(&self, p1: &str, p2: &str) -> Option<&HashSet<String>>  {
         self.pair_from_variable.get(p1).and_then(|x| x.get(p2))
     }
 
@@ -32,29 +33,20 @@ impl ContextFreeGrammar {
     pub fn read<P: AsRef<Path>>(path: P) -> Result<ContextFreeGrammar> {
         let file = std::fs::File::open(path)?;
         let reader = std::io::BufReader::new(file);
+        let converted = ContextFreeGrammar::convert(reader.lines())?;
 
-        let vec = Vec::<u8>::new();
-        let mut writer = std::io::BufWriter::new(vec);
-
-        for line in reader.lines() {
-            let line = line?;
-            let (head, body) = if let Some(space) = line.find(" ") {
-                line.split_at(space)
-            } else {
-                (line.as_str(), "")
-            };
-            writer.write(head.as_bytes())?;
-            writer.write(" -> ".as_bytes())?;
-            writer.write(body.as_bytes())?;
-            writer.write("\n".as_bytes())?;
-        }
-        writer.flush()?;
-        ContextFreeGrammar::from_text(std::str::from_utf8(writer.get_ref().as_slice())?)
+        ContextFreeGrammar::_from_text(converted.as_str())
     }
 
     pub fn from_text(text: &str) -> Result<ContextFreeGrammar> {
-        let (initial, productions, produces_epsilon) = Python::with_gil(|py| -> Result<(String, Vec<(String, Vec<String>)>, bool)> {
-            let module = PyModule::from_code(py, from_utf8(include_bytes!("py/parse_cfg.py"))?, "a.py", "a")?;
+        let converted = ContextFreeGrammar::convert(text.lines().map(Ok))?;
+
+        ContextFreeGrammar::_from_text(converted.as_str())
+    }
+
+    pub fn _from_text(text: &str) -> Result<ContextFreeGrammar> {
+        let (initial, nonterminals, productions, produces_epsilon) = Python::with_gil(|py| -> Result<(String, Vec<String>, Vec<(String, Vec<String>)>, bool)> {
+            let module = PyModule::from_code(py, from_utf8(include_bytes!("py/read_cfg_in_cnf.py"))?, "a.py", "a")?;
             Ok(module.call1("parse_cfg", (text,))?.extract()?)
         })?;
 
@@ -90,6 +82,7 @@ impl ContextFreeGrammar {
 
         Ok(ContextFreeGrammar {
             initial,
+            nonterminals: nonterminals.into_iter().collect(),
             produces_epsilon,
             unit_from_variable,
             pair_from_variable,
@@ -124,21 +117,45 @@ impl ContextFreeGrammar {
                 for_insert.iter().for_each(|x| { set.insert(x); });
             }
         }
-        return m[0][word.len() - 1].contains(&self.initial);
+        m[0][word.len() - 1].contains(&self.initial)
+    }
+
+    pub(crate) fn convert<'a, S: AsRef<str>, I: Iterator<Item=std::io::Result<S>>>(lines: I) -> Result<String> {
+        let vec = Vec::<u8>::new();
+        let mut writer = std::io::BufWriter::new(vec);
+
+        for line in lines {
+            let line = line?;
+            let line = line.as_ref();
+            let (head, body) = if let Some(space) = line.find(" ") {
+                line.split_at(space)
+            } else {
+                continue
+            };
+            writer.write(head.as_bytes())?;
+            writer.write(" -> ".as_bytes())?;
+            writer.write(body.as_bytes())?;
+            writer.write("\n".as_bytes())?;
+        }
+        writer.flush()?;
+
+        Ok(String::from_utf8(writer.into_inner()?)?)
     }
 }
 
 impl Graph {
-    pub fn cfpq_hellings(&self, cfg: &ContextFreeGrammar) -> Vec<Ends> {
-        let mut r = HashSet::<(Ends, &String)>::new();
-        let mut m = VecDeque::<(Ends, &String)>::new();
+    pub fn cfpq_hellings<'a>(&self, cfg: &'a ContextFreeGrammar) -> ResultWithSets<'a> {
+        let mut r = HashMap::<&str, HashSet<Ends>>::new();
+        let mut m = VecDeque::<(Ends, &str)>::new();
 
         if cfg.produces_epsilon {
+            let mut set = HashSet::<Ends>::new();
             for v in 0..self.size {
-                let p = ((v, v), &cfg.initial);
-                r.insert(p);
-                m.push_back(p);
+                set.insert((v, v));
+                m.push_back(((v, v), cfg.initial.as_str()));
             }
+
+            r.insert(cfg.initial.as_str(), set);
         }
 
         for (label, matrix) in &self.matrices {
@@ -147,9 +164,9 @@ impl Graph {
 
                 for var in vars {
                     for (from, to) in &pairs {
-                        let p = ((*from, *to), var);
-                        if r.insert(p) {
-                            m.push_back(p);
+                        let set = r.entry(var).or_insert_with(HashSet::new);
+                        if set.insert((*from, *to)) {
+                            m.push_back(((*from, *to), var));
                         }
                     }
                 }
@@ -158,43 +175,57 @@ impl Graph {
 
         while !m.is_empty() {
             let ((v, u), n_i) = m.pop_front().unwrap();
-            let mut new = HashSet::<(Ends, &String)>::new();
+            let mut new = HashSet::<(Ends, &str)>::new();
 
-            for ((v_, u_), n_j) in &r {
-                if *u_ == v {
-                    if let Some(n_ks) = cfg.get_producers_by_pair(n_j, n_i) {
-                        for n_k in n_ks {
-                            let p = ((*v_, u), n_k);
-                            if !r.contains(&p) {
-                                new.insert(p);
+            for (n_j, set) in &r {
+                for (v_, u_) in set {
+                    if *u_ == v {
+                        if let Some(n_ks) = cfg.get_producers_by_pair(n_j, n_i) {
+                            for n_k in n_ks {
+                                let p = ((*v_, u), n_k.as_str());
+                                if let Some(set) = r.get(n_k.as_str()) {
+                                    if !set.contains(&(*v_, u)) {
+                                        new.insert(p);
+                                    }
+                                } else {
+                                    new.insert(p);
+                                }
                             }
                         }
                     }
-                }
 
-                if *v_ == u {
-                    if let Some(n_ks) = cfg.get_producers_by_pair(n_i, n_j) {
-                        for n_k in n_ks {
-                            let p = ((v, *u_), n_k);
-                            if !r.contains(&p) {
-                                new.insert(p);
+                    if *v_ == u {
+                        if let Some(n_ks) = cfg.get_producers_by_pair(n_i, n_j) {
+                            for n_k in n_ks {
+                                let p = ((v, *u_), n_k.as_str());
+                                if let Some(set) = r.get(n_k.as_str()) {
+                                    if !set.contains(&(v, *u_)) {
+                                        new.insert(p);
+                                    }
+                                } else {
+                                    new.insert(p);
+                                }
                             }
                         }
                     }
                 }
             }
 
-            for n in new {
-                r.insert(n);
-                m.push_back(n);
+            for ((from, to), var) in new {
+                let set = r.entry(var).or_insert_with(HashSet::new);
+                set.insert((from, to));
+                m.push_back(((from, to), var));
             }
         }
 
-        r.into_iter().filter(|(_, s)| s == &&cfg.initial).map(|(p, _)| p).collect()
+        ResultWithSets {
+            map: r,
+            nonterminals: &cfg.nonterminals,
+        }
     }
 
-    pub fn cfpq_matrix_product(&self, cfg: &ContextFreeGrammar) -> Vec<Ends> {
-        let mut matrices = HashMap::<&String, BooleanMatrix>::new();
+    pub fn cfpq_matrix_product<'a>(&self, cfg: &'a ContextFreeGrammar) -> ResultWithMatrices<'a> {
+        let mut matrices = HashMap::<&str, BooleanMatrix>::new();
         for (body, heads) in &cfg.unit_from_variable {
             if let Some(body_matrix) = self.matrices.get(body) {
                 for head in heads {
@@ -217,7 +248,7 @@ impl Graph {
             for (left, map) in &cfg.pair_from_variable {
                 for (right, heads) in map {
                     for head in heads {
-                        let matrix = matrices.remove(head);
+                        let matrix = matrices.remove(head.as_str());
                         let mut matrix = matrix.unwrap_or_else(|| Matrix::<bool>::new(self.size, self.size));
 
                         let n = matrix.nvals();
@@ -225,17 +256,17 @@ impl Graph {
                             let production = Matrix::<bool>::mxm(Semiring::<bool>::lor_land(), &matrix, &matrix);
                             matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), &production);
                         } else if left == head {
-                            if let Some(right_matrix) = matrices.get(right) {
+                            if let Some(right_matrix) = matrices.get(right.as_str()) {
                                 let production = Matrix::<bool>::mxm(Semiring::<bool>::lor_land(), &matrix, &right_matrix);
                                 matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), &production);
                             }
                         } else if right == head {
-                            if let Some(left_matrix) = matrices.get(left) {
+                            if let Some(left_matrix) = matrices.get(left.as_str()) {
                                 let production = Matrix::<bool>::mxm(Semiring::<bool>::lor_land(), &left_matrix, &matrix);
                                 matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), &production);
                             }
-                        }else if let Some(left_matrix) = matrices.get(left) {
-                            if let Some(right_matrix) = matrices.get(right) {
+                        }else if let Some(left_matrix) = matrices.get(left.as_str()) {
+                            if let Some(right_matrix) = matrices.get(right.as_str()) {
                                 matrix.accumulate_mxm(BinaryOp::<bool, bool, bool>::lor(), Semiring::<bool>::lor_land(), left_matrix, right_matrix);
                             }
                         }
@@ -246,10 +277,54 @@ impl Graph {
             }
         }
 
-        if let Some(matrix) = matrices.get(&cfg.initial) {
-            matrix.extract_pairs()
+        ResultWithMatrices {
+            map: matrices,
+            nonterminals: &cfg.nonterminals,
+        }
+    }
+}
+
+pub trait ContextFreeResult {
+    fn reachable_edges(&self, nonterminal: &str) -> Vec<Ends>;
+    fn nonterminals(&self) -> &HashSet<String>;
+}
+
+pub struct ResultWithSets<'a> {
+    pub(crate) map: HashMap<&'a str, HashSet<Ends>>,
+    pub(crate) nonterminals: &'a HashSet<String>,
+}
+
+pub struct ResultWithMatrices<'a> {
+    pub(crate) map: HashMap<&'a str, BooleanMatrix>,
+    pub(crate) nonterminals: &'a HashSet<String>,
+}
+
+impl<'a> ContextFreeResult for ResultWithSets<'a> {
+    fn reachable_edges(&self, nonterminal: &str) -> Vec<Ends> {
+        if let Some(set)  = self.map.get(nonterminal) {
+            set.iter().cloned().collect()
         } else {
             Vec::new()
         }
+    }
+
+    fn nonterminals(&self) -> &HashSet<String> {
+        self.nonterminals
+    }
+}
+
+impl<'a> ContextFreeResult for ResultWithMatrices<'a> {
+    fn reachable_edges(&self, nonterminal: &str) -> Vec<Ends> {
+        if self.nonterminals.contains(nonterminal) {
+            if let Some(matrix)  = self.map.get(nonterminal) {
+                return matrix.extract_pairs();
+            }
+        }
+
+        Vec::new()
+    }
+
+    fn nonterminals(&self) -> &HashSet<String> {
+        self.nonterminals
     }
 }

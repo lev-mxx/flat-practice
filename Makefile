@@ -17,4 +17,4 @@ build/graphblas:
 	source make/get_graphblas.bash && touch $@
 
 clean:
-	rm -rf build
+	rm -rf build && (cargo clean) && (cd lib && cargo clean && (cd graphblas && cargo clean))
