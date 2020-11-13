@@ -7,7 +7,7 @@ use flat_practice_lib::dfa::Dfa;
 use flat_practice_lib::graph::Graph;
 use flat_practice_lib::measure::write_csv;
 
-static HELP: &'static str = "Arguments: (stats *path to graph file* *path to request file*) | (measure *path*)";
+static HELP: &'static str = "Arguments: (stats *path to graph file* *path to request file*) | (measure *path*) | (check *path*)";
 
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
@@ -35,7 +35,7 @@ fn main() -> Result<()> {
             let graph = Graph::read_from(graph_path)?;
             let regex = Dfa::read_regex_from(regex_path)?;
             println!("{:?}", graph.kronecker(&regex.graph).get_stats());
-        },
+        }
         "measure" => {
             let path = if let Some(arg) = args.next() {
                 arg
@@ -53,6 +53,14 @@ fn main() -> Result<()> {
                 panic!(HELP);
             };
             write_csv(path, csv, iterations)?;
+        }
+        "check" => {
+            let path = if let Some(arg) = args.next() {
+                arg
+            } else {
+                panic!(HELP);
+            };
+
         }
         other => panic!("unknown command {}", other)
     }

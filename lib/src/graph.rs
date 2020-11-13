@@ -44,7 +44,7 @@ impl Graph {
             .map(|line| match line {
             Ok(line) => {
                 let split: Vec<&str> = line.split(" ").collect();
-                if split.len() != 3 {
+                if split.len() < 3 {
                     Err(Error::msg("invalid format"))?
                 } else {
                     let from = u64::from_str(split[0])?;
