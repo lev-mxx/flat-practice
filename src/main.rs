@@ -6,6 +6,9 @@ use anyhow::Result;
 use flat_practice_lib::dfa::Dfa;
 use flat_practice_lib::graph::Graph;
 use flat_practice_lib::measure::write_csv;
+use flat_practice_lib::syntax;
+use std::fs::File;
+use std::io::Read;
 
 static HELP: &'static str = "Arguments: (stats *path to graph file* *path to request file*) | (measure *path*) | (check *path*)";
 
@@ -60,11 +63,17 @@ fn main() -> Result<()> {
             } else {
                 panic!(HELP);
             };
-
+            let mut file = File::open(path)?;
+            let mut content = String::new();
+            file.read_to_string(&mut content)?;
+            if syntax::check(content.as_str())? {
+                println!("valid")
+            } else {
+                println!("invalid")
+            }
         }
         other => panic!("unknown command {}", other)
     }
-
 
     Ok(())
 }
