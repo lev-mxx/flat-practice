@@ -15,7 +15,7 @@ pub enum Script {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Statement {
-    Connect(String),
+    Connect(Vec<String>),
     Define(String, Pattern),
     Get(ObjectExpr, GraphExpr),
 }

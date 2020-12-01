@@ -93,7 +93,7 @@ mod test_ast {
     }
 
     test!("empty", Sequence(Vec::new()));
-    test!("open", Sequence(vec!(Connect("db".to_string()))));
+    test!("open", Sequence(vec!(Connect(vec!("db".to_string())))));
     test!("let", Sequence(vec!(Define("a".to_string(), Term("a".to_string())))));
     test!("precedence", Sequence(vec!(Define("a".to_string(),
         Alt(

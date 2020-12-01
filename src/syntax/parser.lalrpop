@@ -9,13 +9,13 @@ pub script: Script = {
 }
 
 statement: Statement = {
-    "connect" "to" <ident> => Connect(<>),
+    "connect" "to" <list:(<ident> ".")*> <last:ident> => Connect({ let mut list = list; list.push(last); list }),
     "define" <ident> "as" <pattern> => Define(<>),
     "get" <obj_expr> "from" <graph_expr> => Get(<>),
 }
 
 graph_expr: GraphExpr = {
-    <graph:boxed<graph_expr>> "with" "starts" "as" <initials:vertices> "and" "finals" "as" <finals:vertices> => WithEnds{<>},
+    <graph:boxed<graph_expr>> "with" "initials" "as" <initials:vertices> "and" "finals" "as" <finals:vertices> => WithEnds{<>},
     graph_expr_intersect,
 }
 
@@ -70,7 +70,6 @@ bool_expr_primary = {
     <ident> "is" "start" => IsStart(<>),
     <ident> "is" "final" => IsFinal(<>),
 }
-
 
 pattern: Pattern = {
     <boxed<pattern>> "|" <boxed<pattern_seq>> => Alt(<>),

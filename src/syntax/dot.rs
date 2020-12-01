@@ -28,7 +28,16 @@ impl ToDot for Script {
 impl ToDot for Statement {
     fn to_dot(&self, ctx: &mut DotContext) -> usize {
         match self {
-            Connect(db) => ctx.vertex(&format!("Connect to {}", db)),
+            Connect(path) => {
+                let mut name = String::new();
+                let size = path.len();
+                for i in 0..size - 1 {
+                    name.push_str(path[i].as_str());
+                    name.push('.');
+                }
+                name.push_str(path[size - 1].as_str());
+                ctx.vertex(&format!("Connect to {}", name))
+            }
             Define(name, pattern) => ctx.op(&format!("Define {}", name), pattern),
             Get(o, g) => ctx.binop(&"Get", o, g),
         }
