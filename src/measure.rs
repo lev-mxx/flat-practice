@@ -6,8 +6,8 @@ use anyhow::Result;
 
 use graphblas::BaseTypeMatrix;
 
-use crate::dfa::*;
-use crate::graph::{ExtractPairs, Graph};
+use crate::compute::dfa::*;
+use crate::compute::graph::{ExtractPairs, Graph};
 
 static LIST: &[(&str, fn(&mut BaseTypeMatrix<bool>))] = &[
     ("square", Graph::close_with_squaring),

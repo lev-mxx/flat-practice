@@ -1,16 +1,21 @@
+#[macro_use]
+extern crate lalrpop_util;
+
 use std::env;
+use std::fs::File;
+use std::io::Read;
 use std::str::FromStr;
 
 use anyhow::Result;
+use crate::compute::graph::Graph;
+use crate::compute::dfa::Dfa;
+use crate::measure::write_csv;
 
-use flat_practice_lib::dfa::Dfa;
-use flat_practice_lib::graph::Graph;
-use flat_practice_lib::measure::write_csv;
-use flat_practice_lib::syntax;
-use std::fs::File;
-use std::io::Read;
+mod compute;
+mod syntax;
+mod measure;
 
-static HELP: &'static str = "Arguments: (stats *path to graph file* *path to request file*) | (measure *path*) | (check *path*)";
+static HELP: &'static str = "Arguments: (stats *path to graph file* *path to request file*) | (measure *path*) | (check *path*) | (dot *path*)";
 
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
@@ -71,6 +76,19 @@ fn main() -> Result<()> {
             } else {
                 println!("invalid")
             }
+        }
+        "dot" => {
+            let path = if let Some(arg) = args.next() {
+                arg
+            } else {
+                panic!(HELP)
+            };
+            let mut file = File::open(path)?;
+            let mut content = String::new();
+            file.read_to_string(&mut content)?;
+            let ast = syntax::build_ast(content.as_str())?;
+            let dot = syntax::to_dot(&ast);
+            println!("{}", dot);
         }
         other => panic!("unknown command {}", other)
     }

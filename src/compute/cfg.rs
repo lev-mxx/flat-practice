@@ -9,7 +9,7 @@ use pyo3::types::PyModule;
 
 use graphblas::*;
 
-use crate::graph::{BooleanMatrix, Ends, ExtractPairs, Graph};
+use super::graph::{BooleanMatrix, Ends, ExtractPairs, Graph};
 
 #[derive(Debug)]
 pub struct ContextFreeGrammar {
@@ -46,7 +46,7 @@ impl ContextFreeGrammar {
 
     pub fn _from_text(text: &str) -> Result<ContextFreeGrammar> {
         let (initial, nonterminals, productions, produces_epsilon) = Python::with_gil(|py| -> Result<(String, Vec<String>, Vec<(String, Vec<String>)>, bool)> {
-            let module = PyModule::from_code(py, from_utf8(include_bytes!("py/read_cfg_in_cnf.py"))?, "a.py", "a")?;
+            let module = PyModule::from_code(py, from_utf8(include_bytes!("py/read_cfg_in_cnf.py"))?, "a.compute.py", "a")?;
             Ok(module.call1("parse_cfg", (text,))?.extract()?)
         })?;
 
@@ -327,4 +327,122 @@ impl<'a> ContextFreeResult for ResultWithMatrices<'a> {
     fn nonterminals(&self) -> &HashSet<String> {
         self.nonterminals
     }
+}
+
+#[cfg(test)]
+mod cfg {
+    use super::{ContextFreeGrammar};
+    use anyhow::Result;
+    use std::str::from_utf8;
+
+    #[test]
+    fn epsilon() -> Result<()> {
+        let cfg = ContextFreeGrammar::from_text(from_utf8(include_bytes!("../../test_data/grammars/epsilon"))?)?;
+
+        assert!(cfg.cyk(&[]));
+        assert!(!cfg.cyk(&[&"a".to_string()]));
+        Ok(())
+    }
+
+    #[test]
+    fn none() -> Result<()> {
+        let cfg = ContextFreeGrammar::from_text(from_utf8(include_bytes!("../../test_data/grammars/none"))?)?;
+
+        assert!(!cfg.cyk(&[]));
+        Ok(())
+    }
+
+    #[test]
+    fn test() -> Result<()> {
+        let cfg = ContextFreeGrammar::from_text(from_utf8(include_bytes!("../../test_data/grammars/operations"))?)?;
+
+        let ref a = String::from("a");
+        let ref b = String::from("b");
+        let ref c = String::from("c");
+        let ref n = String::from("n");
+
+        assert!(!cfg.cyk(&[]));
+        assert!(cfg.cyk(&[c, n, a, n, c, b, n]));
+        assert!(cfg.cyk(&[n, a, n, b, n]));
+        assert!(cfg.cyk(&[n, a, n, a, n, a, n]));
+        assert!(cfg.cyk(&[n, a, c, n, b, n, c, a, n]));
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod cfpq {
+
+    use super::{ContextFreeGrammar, ContextFreeResult};
+    use anyhow::Result;
+    use std::collections::HashSet;
+    use std::str::from_utf8;
+    use crate::compute::graph::{Ends, Graph};
+    use crate::compute::rfa::Rfa;
+
+    fn test<F: Fn(&str, &Graph) -> Result<Vec<Ends>>>(graph: &str, grammar: &str, fun: F, expected: &[Ends]) -> Result<()> {
+        let graph = Graph::from_text(graph)?;
+        let res = fun(grammar, &graph)?;
+        let actual: HashSet<&Ends> = res.iter().collect();
+        let expected: HashSet<&Ends> = expected.iter().collect();
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    macro_rules! test {
+    ($fun: ident, $graph: expr, $grammar: expr, $expected: expr) => {
+        paste::paste! {
+            #[test]
+            fn [<$fun _ $graph _ $grammar>]() -> Result<()> {
+                test(from_utf8(include_bytes!(concat!("../../test_data/graphs/", $graph)))?,
+                    from_utf8(include_bytes!(concat!("../../test_data/grammars/", $grammar)))?, $fun, $expected)
+            }
+        }
+    };
+}
+
+    fn hellings(text: &str, graph: &Graph) -> Result<Vec<Ends>> {
+        let grammar = ContextFreeGrammar::from_text(text)?;
+        Ok(graph.cfpq_hellings(&grammar).reachable_edges("S"))
+    }
+
+    fn matrices(text: &str, graph: &Graph) -> Result<Vec<Ends>> {
+        let grammar = ContextFreeGrammar::from_text(text)?;
+        Ok(graph.cfpq_matrix_product(&grammar).reachable_edges("S"))
+    }
+
+    fn tensors(text: &str, graph: &Graph) -> Result<Vec<Ends>> {
+        let rfa = Rfa::from_text(text)?;
+        Ok(graph.cfpq_tensor_product(&rfa).reachable_edges("S"))
+    }
+
+    test!(hellings, "graph1", "epsilon", &[(0, 0), (1, 1)]);
+    test!(hellings, "graph1", "none", &[]);
+    test!(hellings, "graph1", "grammar1", &[(0, 0), (1, 1), (0, 1)]);
+    test!(hellings, "graph1", "grammar2", &[(0, 1)]);
+    test!(hellings, "graph1", "grammar3", &[(0, 0), (0, 1)]);
+    test!(hellings, "graph2", "grammar1", &[(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (0, 4), (1, 3)]);
+    test!(hellings, "graph2", "grammar2", &[(0, 0), (1, 3), (0, 4)]);
+    test!(hellings, "graph2", "grammar3", &[(0, 1), (1, 2), (0, 4), (1, 3), (1, 0)]);
+
+    test!(matrices, "graph1", "epsilon", &[(0, 0), (1, 1)]);
+    test!(matrices, "graph1", "none", &[]);
+    test!(matrices, "graph1", "grammar1", &[(0, 0), (1, 1), (0, 1)]);
+    test!(matrices, "graph1", "grammar2", &[(0, 1)]);
+    test!(matrices, "graph1", "grammar3", &[(0, 0), (0, 1)]);
+    test!(matrices, "graph2", "grammar1", &[(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (0, 4), (1, 3)]);
+    test!(matrices, "graph2", "grammar2", &[(0, 0), (1, 3), (0, 4)]);
+    test!(matrices, "graph2", "grammar3", &[(0, 1), (1, 2), (0, 4), (1, 3), (1, 0)]);
+
+    test!(tensors, "graph1", "epsilon", &[(0, 0), (1, 1)]);
+    test!(tensors, "graph1", "none", &[]);
+    test!(tensors, "graph1", "grammar1", &[(0, 0), (1, 1), (0, 1)]);
+    test!(tensors, "graph1", "grammar2", &[(0, 1)]);
+    test!(tensors, "graph1", "grammar3", &[(0, 0), (0, 1)]);
+    test!(tensors, "graph2", "grammar1", &[(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (0, 4), (1, 3)]);
+    test!(tensors, "graph2", "grammar2", &[(0, 0), (1, 3), (0, 4)]);
+    test!(tensors, "graph2", "grammar3", &[(0, 1), (1, 2), (0, 4), (1, 3), (1, 0)]);
 }
