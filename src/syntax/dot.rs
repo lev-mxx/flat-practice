@@ -40,7 +40,7 @@ impl ToDot for GraphExpr {
         match self {
             Intersection(g1, g2) => ctx.binop(&"&", g1.as_ref(), g2.as_ref()),
             Query(p) => p.to_dot(ctx),
-            Graph { name } => ctx.vertex(name),
+            Graph { name } => ctx.vertex(&format!("Graph '{}'", name)),
             WithEnds { graph, finals, initials } => {
                 let g_id = ctx.op(&"Graph", graph.as_ref());
                 let f_id = ctx.op(&"Finals", finals);
@@ -87,7 +87,7 @@ impl ToDot for Condition {
     fn to_dot(&self, ctx: &mut DotContext) -> usize {
         match self {
             Cond(from, to, label, b) => {
-                ctx.op(&format!("{} {} {} satisfy", from, to, label), b)
+                ctx.op(&format!("Satisfy {}, {}, {}", from, to, label), b)
             }
         }
     }

@@ -7,6 +7,7 @@ use crate::syntax::ast::Script;
 
 pub mod ast;
 pub mod dot;
+pub use dot::to_dot;
 
 fn input_map(c: char) -> char {
     if c.is_whitespace() {
@@ -33,8 +34,6 @@ pub fn build_ast(text: &str) -> Result<Script> {
     let parser = parser::scriptParser::new();
     Ok(parser.parse(text).unwrap())
 }
-
-pub fn to_dot(s: &Script) -> String { dot::to_dot(s) }
 
 #[cfg(test)]
 mod tests {
@@ -73,11 +72,13 @@ mod tests {
 
 #[cfg(test)]
 mod test_ast {
+    use std::str::from_utf8;
+
     use anyhow::Result;
 
-    use super::*;
-    use std::str::from_utf8;
     use ast::*;
+
+    use super::*;
 
     macro_rules! test {
         ($script: expr, $expected: expr) => {

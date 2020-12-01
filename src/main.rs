@@ -49,10 +49,17 @@ fn main() -> Result<()> {
         }
         "check" => {
             let path = arg();
-            let mut file = File::open(path)?;
-            let mut content = String::new();
-            file.read_to_string(&mut content)?;
-            if syntax::check(content.as_str())? {
+            let string = match path.as_str() {
+                "-" => read_stdin(),
+                _ => {
+                    let mut file = File::open(path)?;
+                    let mut content = String::new();
+                    file.read_to_string(&mut content)?;
+                    content
+                }
+            };
+
+            if syntax::check(string.as_str())? {
                 println!("valid")
             } else {
                 println!("invalid")
@@ -60,10 +67,16 @@ fn main() -> Result<()> {
         }
         "dot" => {
             let path = arg();
-            let mut file = File::open(path)?;
-            let mut content = String::new();
-            file.read_to_string(&mut content)?;
-            let ast = syntax::build_ast(content.as_str())?;
+            let string = match path.as_str() {
+                "-" => read_stdin(),
+                _ => {
+                    let mut file = File::open(path)?;
+                    let mut content = String::new();
+                    file.read_to_string(&mut content)?;
+                    content
+                }
+            };
+            let ast = syntax::build_ast(string.as_str())?;
             let dot = syntax::to_dot(&ast);
 
             println!("{}", dot);
@@ -72,4 +85,21 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn read_stdin() -> String {
+    let mut str = String::new();
+    loop {
+        let mut input = String::new();
+        match std::io::stdin().read_line(&mut input) {
+            Ok(_) => {
+                match input.as_str() {
+                    "end\n" => break,
+                    _ => str.push_str(input.as_str()),
+                }
+            }
+            Err(error) => panic!("error: {}", error),
+        }
+    }
+    str
 }

@@ -10,9 +10,9 @@ use pyo3::types::PyModule;
 
 use graphblas::*;
 
-use super::dfa::Dfa;
-use super::graph::{Edge, Ends, ExtractPairs, Graph, BooleanMatrix};
 use super::cfg::{ContextFreeGrammar, ContextFreeResult};
+use super::dfa::Dfa;
+use super::graph::{BooleanMatrix, Edge, Ends, ExtractPairs, Graph};
 
 #[derive(Debug)]
 pub struct Rfa {

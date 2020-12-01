@@ -7,15 +7,15 @@
 ## Request syntax
 Example:
 ```
-connect to path.db;
+connect to path.db
 
-define var1 as "a"*"b"?;
-define var2 as var1 | "c";
+define var1 as "a"*"b"?
+define var2 as var1 | "c"
 
-get edges from graph;
+get edges from graph
 get count of edges
-    where (from, to, label) satify (is_start from or is_final to) and label is "label"
-    from (graph & var)
+    where (from, to, label) satify (from is start or to is final) and label is "label"
+    from (graph g & var)
         with initials as [1, 2, 3] and finals as [6..90]  
 ```
 
@@ -31,7 +31,7 @@ get count of edges
 
 `list_expr := edges | _list_expr_ where (_ident_, _ident_, _ident_) satisfy _bool_expr_`
 
-`bool_expr := is_final ident | is_start ident | ident is string | _bool_expr_ _op_ _bool_expr_ | not bool_expr`
+`bool_expr := _ident_ is final | _ident_ is start | _ident_ is string | _bool_expr_ _op_ _bool_expr_ | not _bool_expr_`
 
 `graph_expr := ident | pattern | graph_expr & graph_expr | graph_expr with initials as set and finals as set`
 
@@ -41,6 +41,6 @@ get count of edges
 
 `pattern_elem := epsilon | _string_ | _ident_ | _pattern_elem_ '*' | _pattern_elem_ '?' | _pattern_elem_ '+' | '(' _pattern_elem_ ')'`
 ### Check syntax
-```
-cargo run check *file*
-```
+`cargo run check [file]`
+### Print AST in DOT format
+`cargo run dot [file]`

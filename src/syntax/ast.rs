@@ -1,9 +1,17 @@
+pub use BoolExpr::*;
+pub use Condition::*;
+pub use GraphExpr::*;
+pub use ListExpr::*;
+pub use ObjectExpr::*;
+pub use Pattern::*;
+pub use Script::*;
+pub use Statement::*;
+pub use Vertices::*;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Script {
     Sequence(Vec<Statement>),
 }
-pub use Script::*;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Statement {
@@ -11,7 +19,6 @@ pub enum Statement {
     Define(String, Pattern),
     Get(ObjectExpr, GraphExpr),
 }
-pub use Statement::*;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum GraphExpr {
@@ -20,7 +27,6 @@ pub enum GraphExpr {
     Graph { name: String },
     WithEnds { initials: Vertices, finals: Vertices, graph: Box<GraphExpr> },
 }
-pub use GraphExpr::*;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Vertices {
@@ -28,27 +34,23 @@ pub enum Vertices {
     Range { from: u64, to: u64 },
     EmptySet,
 }
-pub use Vertices::*;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ObjectExpr {
     Count(ListExpr),
     List(ListExpr),
 }
-pub use ObjectExpr::*;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ListExpr {
     Edges,
     Filter(Box<ListExpr>, Condition),
 }
-pub use ListExpr::*;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Condition {
     Cond(String, String, String, BoolExpr),
 }
-pub use Condition::*;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum BoolExpr {
@@ -59,7 +61,6 @@ pub enum BoolExpr {
     Or(Box<BoolExpr>, Box<BoolExpr>),
     Not(Box<BoolExpr>),
 }
-pub use BoolExpr::*;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Pattern {
@@ -71,5 +72,3 @@ pub enum Pattern {
     Alt(Box<Pattern>, Box<Pattern>),
     Seq(Vec<Pattern>),
 }
-pub use Pattern::*;
-
