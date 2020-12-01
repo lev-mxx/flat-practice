@@ -1,10 +1,10 @@
-connect to db;
+connect to db
 
-define ss as s s | epsilon;
-define a as b*+?epsilon;
+define ss as s s | epsilon
+define a as b*+?epsilon
 
 get edges
-    where (a, b, _) satisfy (is_start a or is_final a) and not is_start b
-    from graph & (epsilon | ss);
+    where (a, b, _) satisfy (a is start or a is final) and not b is start
+    from graph g & (epsilon | ss)
 
-get count of edges from graph with starts as [1, 2, 3, 57] and finals as [1..43]
+get count of edges from graph g with starts as [1, 2, 3, 57] and finals as [1..43]
