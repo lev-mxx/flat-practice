@@ -10,9 +10,9 @@ use pyo3::types::PyModule;
 
 use graphblas::*;
 
-use crate::dfa::Dfa;
-use crate::graph::{Edge, Ends, ExtractPairs, Graph, BooleanMatrix};
-use crate::cfg::{ContextFreeGrammar, ContextFreeResult};
+use super::dfa::Dfa;
+use super::graph::{Edge, Ends, ExtractPairs, Graph, BooleanMatrix};
+use super::cfg::{ContextFreeGrammar, ContextFreeResult};
 
 #[derive(Debug)]
 pub struct Rfa {
@@ -36,7 +36,7 @@ impl Rfa {
         let converted = ContextFreeGrammar::convert(text.lines().map(Ok))?;
 
         let (initial, nonterminals, productions, produces_epsilon) = Python::with_gil(|py| -> Result<(String, Vec<String>, Vec<(String, Vec<String>)>, bool)> {
-            let module = PyModule::from_code(py, from_utf8(include_bytes!("py/read_cfg_in_cnf.py"))?, "a.py", "a")?;
+            let module = PyModule::from_code(py, from_utf8(include_bytes!("py/read_cfg_in_cnf.py"))?, "a.compute.py", "a")?;
             Ok(module.call1("parse_cfg", (converted.as_str(),))?.extract()?)
         })?;
 
@@ -129,7 +129,7 @@ impl Rfa {
                 .collect();
 
             let (line_initial, line_finals, line_edges) = Python::with_gil(|py| -> Result<(u64, Vec<u64>, Vec<Edge>)> {
-                let module = PyModule::from_code(py, from_utf8(include_bytes!("py/regex_to_edges.py"))?, "a.py", "a")?;
+                let module = PyModule::from_code(py, from_utf8(include_bytes!("py/regex_to_edges.py"))?, "a.compute.py", "a")?;
                 let py_res: (u64, Vec<u64>, Vec<Edge>) = module.call1("regex_to_edges", (body,))?.extract()?;
                 Ok(py_res)
             })?;
