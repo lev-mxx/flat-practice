@@ -1,0 +1,105 @@
+use std::str::FromStr;
+
+use crate::syntax::ast::*;
+
+grammar;
+
+pub script: Script = {
+    statement* => Sequence(<>)
+}
+
+statement: Statement = {
+    "connect" "to" <list:(<ident> ".")*> <last:ident> => Connect({ let mut list = list; list.push(last); list }),
+    "define" <ident> "as" <pattern> => Define(<>),
+    "get" <obj_expr> "from" <graph_expr> => Get(<>),
+}
+
+graph_expr: GraphExpr = {
+    <graph:boxed<graph_expr>> "with" "initials" "as" <initials:vertices> "and" "finals" "as" <finals:vertices> => WithEnds{<>},
+    graph_expr_intersect,
+}
+
+graph_expr_intersect = {
+    <boxed<graph_expr_intersect>> "&" <boxed<graph_expr_primary>> => Intersection(<>),
+    graph_expr_primary,
+}
+
+graph_expr_primary: GraphExpr = {
+    pattern => Query(<>),
+    "graph" <name:ident> => Graph {<>}
+}
+
+vertices: Vertices = {
+    "[" <ns:(<number> ",")*> <n:number> "]" => Set({ let mut ns = ns; ns.push(n); ns }),
+    "[" <from:number> ".." <to:number> "]" => Range{<>},
+    "[]" => EmptySet,
+}
+
+obj_expr: ObjectExpr = {
+    "count" "of" <list_expr> => Count(<>),
+    list_expr => List(<>),
+}
+
+list_expr: ListExpr = {
+    "edges" => Edges,
+    <boxed<list_expr>> "where" <condition> => Filter(<>),
+}
+
+condition: Condition = {
+    "(" <ident> "," <ident> "," <ident> ")" "satisfy" <bool_expr> => Cond(<>),
+}
+
+bool_expr: BoolExpr = {
+    <boxed<bool_expr>> "or" <boxed<bool_expr_and>> => Or(<>),
+    bool_expr_and
+}
+
+bool_expr_and = {
+    <boxed<bool_expr_and>> "and" <boxed<bool_expr_not>> => And(<>),
+    bool_expr_not,
+}
+
+bool_expr_not = {
+    "not" <boxed<bool_expr_not>> => Not(<>),
+    bool_expr_primary,
+}
+
+bool_expr_primary = {
+    in_parentheses<bool_expr>,
+    <ident> "is" "\"" <ident> "\"" => Is(<>),
+    <ident> "is" "start" => IsStart(<>),
+    <ident> "is" "final" => IsFinal(<>),
+}
+
+pattern: Pattern = {
+    <boxed<pattern>> "|" <boxed<pattern_seq>> => Alt(<>),
+    pattern_seq,
+}
+
+pattern_seq: Pattern = {
+    pattern_many* => if <>.len() == 1 { let mut l = <>; l.pop().unwrap() } else { Seq(<>) },
+}
+
+pattern_many: Pattern = {
+    <boxed<pattern_many>> "*" => Star(<>),
+    <boxed<pattern_many>> "+" => Plus(<>),
+    <boxed<pattern_many>> "?" => Maybe(<>),
+    pattern_primary,
+}
+
+pattern_primary: Pattern = {
+    in_parentheses<pattern>,
+    "\"" <ident> "\"" => Term(<>),
+    ident => Var(<>),
+}
+
+number: u64 = {
+    r"[1-9][0-9]*" => u64::from_str(<>).unwrap(),
+}
+
+ident: String = {
+    r"[_a-zA-Z][_0-9a-zA-Z]*" => <>.to_string(),
+}
+
+in_parentheses<T>: T = { "(" <T> ")" => <> }
+boxed<T>: Box<T> = { T => Box::new(<>) }

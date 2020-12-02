@@ -331,9 +331,11 @@ impl<'a> ContextFreeResult for ResultWithMatrices<'a> {
 
 #[cfg(test)]
 mod cfg {
-    use super::{ContextFreeGrammar};
-    use anyhow::Result;
     use std::str::from_utf8;
+
+    use anyhow::Result;
+
+    use super::ContextFreeGrammar;
 
     #[test]
     fn epsilon() -> Result<()> {
@@ -373,13 +375,15 @@ mod cfg {
 
 #[cfg(test)]
 mod cfpq {
-
-    use super::{ContextFreeGrammar, ContextFreeResult};
-    use anyhow::Result;
     use std::collections::HashSet;
     use std::str::from_utf8;
+
+    use anyhow::Result;
+
     use crate::compute::graph::{Ends, Graph};
     use crate::compute::rfa::Rfa;
+
+    use super::{ContextFreeGrammar, ContextFreeResult};
 
     fn test<F: Fn(&str, &Graph) -> Result<Vec<Ends>>>(graph: &str, grammar: &str, fun: F, expected: &[Ends]) -> Result<()> {
         let graph = Graph::from_text(graph)?;
