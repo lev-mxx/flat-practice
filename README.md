@@ -12,10 +12,10 @@ connect to path.db
 define var1 as "a"*"b"?
 define var2 as var1 | "c"
 
-get edges from graph g
+get edges from g
 get count of edges
-    where (f, t, l) satisfy (f is start or t is final) and l is "label"
-    from graph g & var
+    which satisfy (begin is start or end is final) and label is "label"
+    from application of var2 to g
         with initials as [1, 2, 3] and finals as [6..90]  
 ```
 
@@ -33,7 +33,11 @@ get count of edges
 
 `bool_expr := _ident_ is final | _ident_ is start | _ident_ is string | _bool_expr_ _op_ _bool_expr_ | not _bool_expr_`
 
-`graph_expr := ident | pattern | graph_expr & graph_expr | graph_expr with initials as set and finals as set`
+`graph_expr := _intersection_ | application of _pattern_ to _graph_"`
+
+`intersection := _intersection_ & _graph_`
+
+`graph := _ident_ | _ident_ with initials as _set_ and finals as _set_`
 
 `set := [_number_, ...] | [_number_.._number_]`
 
@@ -41,6 +45,6 @@ get count of edges
 
 `pattern_elem := epsilon | _string_ | _ident_ | _pattern_elem_ '*' | _pattern_elem_ '?' | _pattern_elem_ '+' | '(' _pattern_elem_ ')'`
 ### Check syntax
-`cargo run check (file | -)`
+`cargo run -- check (file | -)`
 ### Print AST in DOT format
-`cargo run dot (file | -)`
+`cargo run -- dot (file | -)`
