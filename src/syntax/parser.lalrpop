@@ -8,25 +8,26 @@ pub script: Script = {
     statement* => Sequence(<>)
 }
 
-statement: Statement = {
+pub statement: Statement = {
     "connect" "to" <list:(<ident> ".")*> <last:ident> => Connect({ let mut list = list; list.push(last); list }),
     "define" <ident> "as" <pattern> => Define(<>),
-    "get" <obj_expr> "from" <graph_expr> => Get(<>),
+    "get" <obj_expr> "from" <source> => Get(<>),
+}
+
+source: Source = {
+    "application" "of" <pattern> "to" <graph_expr> => Apply(<>),
+    graph_expr => Direct(<>)
 }
 
 graph_expr: GraphExpr = {
-    <graph:boxed<graph_expr>> "with" "initials" "as" <initials:vertices> "and" "finals" "as" <finals:vertices> => WithEnds{<>},
-    graph_expr_intersect,
+    <list:(<graph> "&")*> <last: graph> => Intersection({ let mut list = list; list.push(last); list }),
 }
 
-graph_expr_intersect = {
-    <boxed<graph_expr_intersect>> "&" <boxed<graph_expr_primary>> => Intersection(<>),
-    graph_expr_primary,
-}
-
-graph_expr_primary: GraphExpr = {
-    pattern => Query(<>),
-    "graph" <name:ident> => Graph {<>}
+graph: SimpleGraph = {
+    <graph:ident> "with" "initials" "as" <initials:vertices> => WithEnds{ graph, initials, finals: Set(Vec::new()) },
+    <graph:ident> "with" "finals" "as" <finals:vertices> => WithEnds{ graph, finals, initials: Set(Vec::new()) },
+    <graph:ident> "with" "initials" "as" <initials:vertices> "and" "finals" "as" <finals:vertices> => WithEnds{<>},
+    ident => GraphName(<>)
 }
 
 vertices: Vertices = {
@@ -42,11 +43,7 @@ obj_expr: ObjectExpr = {
 
 list_expr: ListExpr = {
     "edges" => Edges,
-    <boxed<list_expr>> "where" <condition> => Filter(<>),
-}
-
-condition: Condition = {
-    "(" <ident> "," <ident> "," <ident> ")" "satisfy" <bool_expr> => Cond(<>),
+    <boxed<list_expr>> "which" "satisfy" <bool_expr> => Filter(<>),
 }
 
 bool_expr: BoolExpr = {
@@ -66,9 +63,14 @@ bool_expr_not = {
 
 bool_expr_primary = {
     in_parentheses<bool_expr>,
-    <ident> "is" "\"" <ident> "\"" => Is(<>),
-    <ident> "is" "start" => IsStart(<>),
-    <ident> "is" "final" => IsFinal(<>),
+    "label" "is" "\"" <ident> "\"" => LabelIs(<>),
+    "begin" "is" <vertex_variant> => BeginIs(<>),
+    "end" "is" <vertex_variant> => EndIs(<>),
+}
+
+vertex_variant: VertexVariant = {
+    "initial" => VertexVariant::Initial,
+    "final" => VertexVariant::Final,
 }
 
 pattern: Pattern = {
@@ -93,8 +95,9 @@ pattern_primary: Pattern = {
     ident => Var(<>),
 }
 
-number: u64 = {
-    r"[1-9][0-9]*" => u64::from_str(<>).unwrap(),
+number: usize = {
+    r"[1-9][0-9]*" => usize::from_str(<>).unwrap(),
+    "0" => 0,
 }
 
 ident: String = {

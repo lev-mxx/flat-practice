@@ -4,6 +4,7 @@
 
 use std::marker::PhantomData;
 use std::os::raw::c_void;
+
 use crate::*;
 
 make_ffi_trait!(BinaryOp<A, B, C>);
@@ -27,7 +28,7 @@ macro_rules! make_binary_ops {
         make_binary_op!($ty, $ty, $ty, $grb_ty, DIV, div);
         make_binary_op!($ty, $ty, $ty, $grb_ty, MIN, min);
         make_binary_op!($ty, $ty, $ty, $grb_ty, MAX, max);
-    }
+    };
 }
 
 for_each_type!(make_binary_ops);

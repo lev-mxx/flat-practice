@@ -34,11 +34,19 @@ pub fn write_csv(path: String, csv_path: String, iterations: u64) -> Result<()> 
                 for _ in 0..iterations {
                     let res = measure(&graph, &query);
 
-                    let res = format!("{},{}/{},{},{},{},{},{},{},{}",
-                                      graph_name, class_name, query_name,
-                                      res.0,
-                                      res.1["square"].0, res.1["square"].1, res.1["square"].2,
-                                      res.1["adj"].0, res.1["adj"].1, res.1["adj"].2);
+                    let res = format!(
+                        "{},{}/{},{},{},{},{},{},{},{}",
+                        graph_name,
+                        class_name,
+                        query_name,
+                        res.0,
+                        res.1["square"].0,
+                        res.1["square"].1,
+                        res.1["square"].2,
+                        res.1["adj"].0,
+                        res.1["adj"].1,
+                        res.1["adj"].2
+                    );
                     println!("{}", res);
                     csv.write(res.as_bytes())?;
                     csv.write("\n".as_bytes())?;
@@ -69,7 +77,10 @@ fn measure(graph: &Graph, request: &Dfa) -> (u128, HashMap<String, (u128, u128, 
         let pairs_time = time.elapsed();
         let pairs_count = pairs.len();
 
-        map.insert(name.to_string(), (close_time.as_nanos(), pairs_time.as_nanos(), pairs_count));
+        map.insert(
+            name.to_string(),
+            (close_time.as_nanos(), pairs_time.as_nanos(), pairs_count),
+        );
     }
     (intersection_time.as_nanos(), map)
 }

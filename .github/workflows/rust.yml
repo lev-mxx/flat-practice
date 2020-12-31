@@ -29,6 +29,8 @@ jobs:
           ~/.cargo
           ~/.local
         key: ${{ runner.os }}-cache
+    - name: Prepare
+      run: rustup install nightly && rustup default nightly
     - name: Build
       run: make
     - name: Run tests

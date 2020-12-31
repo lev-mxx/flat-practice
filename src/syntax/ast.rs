@@ -1,10 +1,11 @@
 pub use BoolExpr::*;
-pub use Condition::*;
 pub use GraphExpr::*;
 pub use ListExpr::*;
 pub use ObjectExpr::*;
 pub use Pattern::*;
 pub use Script::*;
+pub use SimpleGraph::*;
+pub use Source::*;
 pub use Statement::*;
 pub use Vertices::*;
 
@@ -17,21 +18,34 @@ pub enum Script {
 pub enum Statement {
     Connect(Vec<String>),
     Define(String, Pattern),
-    Get(ObjectExpr, GraphExpr),
+    Get(ObjectExpr, Source),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Source {
+    Apply(Pattern, GraphExpr),
+    Direct(GraphExpr),
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum GraphExpr {
-    Intersection(Box<GraphExpr>, Box<GraphExpr>),
-    Query(Pattern),
-    Graph { name: String },
-    WithEnds { initials: Vertices, finals: Vertices, graph: Box<GraphExpr> },
+    Intersection(Vec<SimpleGraph>),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum SimpleGraph {
+    GraphName(String),
+    WithEnds {
+        initials: Vertices,
+        finals: Vertices,
+        graph: String,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Vertices {
-    Set(Vec<u64>),
-    Range { from: u64, to: u64 },
+    Set(Vec<usize>),
+    Range { from: usize, to: usize },
     EmptySet,
 }
 
@@ -44,22 +58,23 @@ pub enum ObjectExpr {
 #[derive(Debug, PartialEq, Eq)]
 pub enum ListExpr {
     Edges,
-    Filter(Box<ListExpr>, Condition),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum Condition {
-    Cond(String, String, String, BoolExpr),
+    Filter(Box<ListExpr>, BoolExpr),
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum BoolExpr {
-    Is(String, String),
-    IsStart(String),
-    IsFinal(String),
+    LabelIs(String),
+    BeginIs(VertexVariant),
+    EndIs(VertexVariant),
     And(Box<BoolExpr>, Box<BoolExpr>),
     Or(Box<BoolExpr>, Box<BoolExpr>),
     Not(Box<BoolExpr>),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum VertexVariant {
+    Initial,
+    Final,
 }
 
 #[derive(Debug, PartialEq, Eq)]

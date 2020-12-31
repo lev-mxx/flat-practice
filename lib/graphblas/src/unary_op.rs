@@ -4,6 +4,7 @@
 
 use std::marker::PhantomData;
 use std::os::raw::c_void;
+
 use crate::*;
 
 make_ffi_trait!(UnaryOp<A, B>);
@@ -17,12 +18,12 @@ macro_rules! make_unary_op {
     }
 }
 
-macro_rules! unary_ops_gen{
+macro_rules! unary_ops_gen {
     ( $rust_tpe:ty, $grb_tpy:ident ) => {
         paste::paste! {
             make_unary_op!($rust_tpe, $rust_tpe, $grb_tpy, IDENTITY, identity);
         }
-    }
+    };
 }
 
 for_each_type!(unary_ops_gen);

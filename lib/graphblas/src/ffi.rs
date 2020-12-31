@@ -2,26 +2,30 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-use std::os::raw::c_void;
 use std::ffi::CStr;
+use std::os::raw::c_void;
 
 pub struct GrbLink {
     link: *mut c_void,
 }
 
 pub(crate) trait GetLink {
-
     fn link(&self) -> *const c_void;
     fn link_mut(&mut self) -> *mut c_void;
 }
 
 impl GrbLink {
+    pub(crate) fn of(link: *mut c_void) -> GrbLink {
+        GrbLink { link }
+    }
 
-    pub(crate) fn of(link: *mut c_void) -> GrbLink { GrbLink { link } }
+    pub(crate) fn link(&self) -> *const c_void {
+        self.link
+    }
 
-    pub(crate) fn link(&self) -> *const c_void { self.link }
-
-    pub(crate) fn link_mut(&mut self) -> *mut c_void { self.link }
+    pub(crate) fn link_mut(&mut self) -> *mut c_void {
+        self.link
+    }
 }
 
 #[macro_export]
@@ -87,9 +91,7 @@ pub(crate) fn handle_grb_info(err: u32) {
     match err {
         0 => (),
         _ => {
-            let grb_err_text = unsafe {
-                CStr::from_ptr(GrB_error()).to_str()
-            };
+            let grb_err_text = unsafe { CStr::from_ptr(GrB_error()).to_str() };
 
             panic!("Error: {}, grb error {:?} ", err, grb_err_text);
         }
@@ -125,4 +127,3 @@ extern "C" {
     pub(crate) fn GrB_error() -> *const i8;
     fn GrB_init(mode: u32) -> u32;
 }
-

@@ -4,7 +4,7 @@ define ss as s s | epsilon
 define a as b*+?epsilon
 
 get edges
-    where (a, b, _) satisfy (a is start or a is final) and not b is start
-    from graph g & (epsilon | ss)
+    which satisfy (begin is initial or end is final) and not end is initial
+    from application of (epsilon | ss) to g
 
-get count of edges from graph g with initials as [1, 2, 3, 57] and finals as [1..43]
+get count of edges from g with initials as [1, 2, 3, 57] and finals as [1..43]

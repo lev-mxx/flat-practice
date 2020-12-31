@@ -2,12 +2,13 @@ use std::str::from_utf8;
 
 use anyhow::Result;
 
+pub use dot::to_dot;
+
 use crate::compute::cfg::ContextFreeGrammar;
-use crate::syntax::ast::Script;
+use crate::syntax::ast::{Script, Statement};
 
 pub mod ast;
 pub mod dot;
-pub use dot::to_dot;
 
 fn input_map(c: char) -> char {
     if c.is_whitespace() {
@@ -32,6 +33,11 @@ lalrpop_mod!(parser, "/syntax/parser.rs");
 
 pub fn build_ast(text: &str) -> Result<Script> {
     let parser = parser::scriptParser::new();
+    Ok(parser.parse(text).unwrap())
+}
+
+pub fn parse_statement(text: &str) -> Result<Statement> {
+    let parser = parser::statementParser::new();
     Ok(parser.parse(text).unwrap())
 }
 
@@ -94,26 +100,40 @@ mod test_ast {
 
     test!("empty", Sequence(Vec::new()));
     test!("open", Sequence(vec!(Connect(vec!("db".to_string())))));
-    test!("let", Sequence(vec!(Define("a".to_string(), Term("a".to_string())))));
-    test!("precedence", Sequence(vec!(Define("a".to_string(),
-        Alt(
-            Box::new(Seq(vec!(Term("b".to_string()), Star(Box::new(Term("c".to_string())))))),
-            Box::new(Seq(vec!(Var("d".to_string()), Maybe(Box::new(Var("e".to_string()))))))
-        )
-    ))));
-    test!("cond", Sequence(vec!(
-        Get(
-            List(Filter(Box::new(Edges), Cond("c".to_string(), "a".to_string(), "b".to_string(), And(
-                Box::new(IsStart("a".to_string())),
-                Box::new(IsStart("b".to_string())),
-            )))),
-            Graph { name: "g".to_string() }
-        )
-    )));
-    test!("get", Sequence(vec!(
-        Get(
+    test!(
+        "let",
+        Sequence(vec!(Define("a".to_string(), Term("a".to_string()))))
+    );
+    test!(
+        "precedence",
+        Sequence(vec!(Define(
+            "a".to_string(),
+            Alt(
+                Box::new(Seq(vec!(
+                    Term("b".to_string()),
+                    Star(Box::new(Term("c".to_string())))
+                ))),
+                Box::new(Seq(vec!(
+                    Var("d".to_string()),
+                    Maybe(Box::new(Var("e".to_string())))
+                )))
+            )
+        )))
+    );
+    //test!("cond", Sequence(vec!(
+    //    Get(
+    //        List(Filter(Box::new(Edges), Cond("c".to_string(), "a".to_string(), "b".to_string(), And(
+    //            Box::new(IsStart("a".to_string())),
+    //            Box::new(IsStart("b".to_string())),
+    //        )))),
+    //        Graph { name: "g".to_string() }
+    //    )
+    //)));
+    test!(
+        "get",
+        Sequence(vec!(Get(
             Count(Edges),
-            Graph { name: "g".to_string() }
-        )
-    )));
+            Direct(Intersection(vec!(GraphName("g".to_string()))))
+        )))
+    );
 }

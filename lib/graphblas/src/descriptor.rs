@@ -3,6 +3,7 @@
 #![allow(non_snake_case)]
 
 use std::ptr;
+
 use crate::*;
 
 make_ffi_trait!(Descriptor);
@@ -15,6 +16,7 @@ lazy_static! {
 }
 
 impl dyn Descriptor {
-
-    pub fn default() -> &'static StaticDescriptor { &default_descriptor }
+    pub fn default() -> &'static StaticDescriptor {
+        &default_descriptor
+    }
 }

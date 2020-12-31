@@ -21,8 +21,7 @@ pub struct ContextFreeGrammar {
 }
 
 impl ContextFreeGrammar {
-
-    pub(crate) fn get_producers_by_pair(&self, p1: &str, p2: &str) -> Option<&HashSet<String>>  {
+    pub(crate) fn get_producers_by_pair(&self, p1: &str, p2: &str) -> Option<&HashSet<String>> {
         self.pair_from_variable.get(p1).and_then(|x| x.get(p2))
     }
 
@@ -45,10 +44,17 @@ impl ContextFreeGrammar {
     }
 
     pub fn _from_text(text: &str) -> Result<ContextFreeGrammar> {
-        let (initial, nonterminals, productions, produces_epsilon) = Python::with_gil(|py| -> Result<(String, Vec<String>, Vec<(String, Vec<String>)>, bool)> {
-            let module = PyModule::from_code(py, from_utf8(include_bytes!("py/read_cfg_in_cnf.py"))?, "a.compute.py", "a")?;
-            Ok(module.call1("parse_cfg", (text,))?.extract()?)
-        })?;
+        let (initial, nonterminals, productions, produces_epsilon) = Python::with_gil(
+            |py| -> Result<(String, Vec<String>, Vec<(String, Vec<String>)>, bool)> {
+                let module = PyModule::from_code(
+                    py,
+                    from_utf8(include_bytes!("py/read_cfg_in_cnf.py"))?,
+                    "a.compute.py",
+                    "a",
+                )?;
+                Ok(module.call1("parse_cfg", (text,))?.extract()?)
+            },
+        )?;
 
         let mut unit_from_variable = HashMap::<String, HashSet<String>>::new();
         let mut pair_from_variable = HashMap::<String, HashMap<String, HashSet<String>>>::new();
@@ -91,13 +97,15 @@ impl ContextFreeGrammar {
 
     pub fn cyk(&self, word: &[&String]) -> bool {
         if word.is_empty() {
-            return self.produces_epsilon
+            return self.produces_epsilon;
         }
-        let mut m = vec!(vec!(HashSet::<&String>::new(); word.len()); word.len());
+        let mut m = vec![vec!(HashSet::<&String>::new(); word.len()); word.len()];
         word.iter().enumerate().for_each(|(i, char)| {
             if let Some(vars) = self.get_producers(char) {
                 let set = &mut m[i][i];
-                vars.iter().for_each(|x| { set.insert(x); });
+                vars.iter().for_each(|x| {
+                    set.insert(x);
+                });
             }
         });
 
@@ -108,19 +116,25 @@ impl ContextFreeGrammar {
                     for left in &m[pos][pos + split] {
                         for right in &m[pos + split + 1][pos + length] {
                             if let Some(vars) = self.get_producers_by_pair(left, right) {
-                                vars.iter().for_each(|x| { for_insert.insert(x); });
+                                vars.iter().for_each(|x| {
+                                    for_insert.insert(x);
+                                });
                             }
                         }
                     }
                 }
                 let set = &mut m[pos][pos + length];
-                for_insert.iter().for_each(|x| { set.insert(x); });
+                for_insert.iter().for_each(|x| {
+                    set.insert(x);
+                });
             }
         }
         m[0][word.len() - 1].contains(&self.initial)
     }
 
-    pub(crate) fn convert<'a, S: AsRef<str>, I: Iterator<Item=std::io::Result<S>>>(lines: I) -> Result<String> {
+    pub(crate) fn convert<'a, S: AsRef<str>, I: Iterator<Item = std::io::Result<S>>>(
+        lines: I,
+    ) -> Result<String> {
         let vec = Vec::<u8>::new();
         let mut writer = std::io::BufWriter::new(vec);
 
@@ -130,7 +144,7 @@ impl ContextFreeGrammar {
             let (head, body) = if let Some(space) = line.find(" ") {
                 line.split_at(space)
             } else {
-                continue
+                continue;
             };
             writer.write(head.as_bytes())?;
             writer.write(" -> ".as_bytes())?;
@@ -229,16 +243,22 @@ impl Graph {
         for (body, heads) in &cfg.unit_from_variable {
             if let Some(body_matrix) = self.matrices.get(body) {
                 for head in heads {
-                    let matrix = matrices.entry(head).or_insert_with(|| Matrix::<bool>::new(self.size, self.size));
-                    matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), body_matrix);
+                    let matrix = matrices.entry(head).or_insert_with(&*self.new_matrix);
+                    matrix.accumulate_apply(
+                        BinaryOp::<bool, bool, bool>::lor(),
+                        UnaryOp::<bool, bool>::identity(),
+                        body_matrix,
+                    );
                 }
             }
         }
 
         if cfg.produces_epsilon {
-            let matrix = matrices.entry(&cfg.initial).or_insert_with(|| Matrix::<bool>::new(self.size, self.size));
+            let matrix = matrices
+                .entry(&cfg.initial)
+                .or_insert_with(&*self.new_matrix);
             for i in 0..self.size {
-                matrix.insert(i, i, true);
+                matrix.insert(i as u64, i as u64, true);
             }
         }
 
@@ -249,25 +269,51 @@ impl Graph {
                 for (right, heads) in map {
                     for head in heads {
                         let matrix = matrices.remove(head.as_str());
-                        let mut matrix = matrix.unwrap_or_else(|| Matrix::<bool>::new(self.size, self.size));
+                        let mut matrix = matrix.unwrap_or_else(&*self.new_matrix);
 
                         let n = matrix.nvals();
                         if left == head && right == head {
-                            let production = Matrix::<bool>::mxm(Semiring::<bool>::lor_land(), &matrix, &matrix);
-                            matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), &production);
+                            let production =
+                                Matrix::<bool>::mxm(Semiring::<bool>::lor_land(), &matrix, &matrix);
+                            matrix.accumulate_apply(
+                                BinaryOp::<bool, bool, bool>::lor(),
+                                UnaryOp::<bool, bool>::identity(),
+                                &production,
+                            );
                         } else if left == head {
                             if let Some(right_matrix) = matrices.get(right.as_str()) {
-                                let production = Matrix::<bool>::mxm(Semiring::<bool>::lor_land(), &matrix, &right_matrix);
-                                matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), &production);
+                                let production = Matrix::<bool>::mxm(
+                                    Semiring::<bool>::lor_land(),
+                                    &matrix,
+                                    &right_matrix,
+                                );
+                                matrix.accumulate_apply(
+                                    BinaryOp::<bool, bool, bool>::lor(),
+                                    UnaryOp::<bool, bool>::identity(),
+                                    &production,
+                                );
                             }
                         } else if right == head {
                             if let Some(left_matrix) = matrices.get(left.as_str()) {
-                                let production = Matrix::<bool>::mxm(Semiring::<bool>::lor_land(), &left_matrix, &matrix);
-                                matrix.accumulate_apply(BinaryOp::<bool, bool, bool>::lor(), UnaryOp::<bool, bool>::identity(), &production);
+                                let production = Matrix::<bool>::mxm(
+                                    Semiring::<bool>::lor_land(),
+                                    &left_matrix,
+                                    &matrix,
+                                );
+                                matrix.accumulate_apply(
+                                    BinaryOp::<bool, bool, bool>::lor(),
+                                    UnaryOp::<bool, bool>::identity(),
+                                    &production,
+                                );
                             }
-                        }else if let Some(left_matrix) = matrices.get(left.as_str()) {
+                        } else if let Some(left_matrix) = matrices.get(left.as_str()) {
                             if let Some(right_matrix) = matrices.get(right.as_str()) {
-                                matrix.accumulate_mxm(BinaryOp::<bool, bool, bool>::lor(), Semiring::<bool>::lor_land(), left_matrix, right_matrix);
+                                matrix.accumulate_mxm(
+                                    BinaryOp::<bool, bool, bool>::lor(),
+                                    Semiring::<bool>::lor_land(),
+                                    left_matrix,
+                                    right_matrix,
+                                );
                             }
                         }
                         changing |= n != matrix.nvals();
@@ -301,7 +347,7 @@ pub struct ResultWithMatrices<'a> {
 
 impl<'a> ContextFreeResult for ResultWithSets<'a> {
     fn reachable_edges(&self, nonterminal: &str) -> Vec<Ends> {
-        if let Some(set)  = self.map.get(nonterminal) {
+        if let Some(set) = self.map.get(nonterminal) {
             set.iter().cloned().collect()
         } else {
             Vec::new()
@@ -316,7 +362,7 @@ impl<'a> ContextFreeResult for ResultWithSets<'a> {
 impl<'a> ContextFreeResult for ResultWithMatrices<'a> {
     fn reachable_edges(&self, nonterminal: &str) -> Vec<Ends> {
         if self.nonterminals.contains(nonterminal) {
-            if let Some(matrix)  = self.map.get(nonterminal) {
+            if let Some(matrix) = self.map.get(nonterminal) {
                 return matrix.extract_pairs();
             }
         }
@@ -339,7 +385,9 @@ mod cfg {
 
     #[test]
     fn epsilon() -> Result<()> {
-        let cfg = ContextFreeGrammar::from_text(from_utf8(include_bytes!("../../test_data/grammars/epsilon"))?)?;
+        let cfg = ContextFreeGrammar::from_text(from_utf8(include_bytes!(
+            "../../test_data/grammars/epsilon"
+        ))?)?;
 
         assert!(cfg.cyk(&[]));
         assert!(!cfg.cyk(&[&"a".to_string()]));
@@ -348,7 +396,9 @@ mod cfg {
 
     #[test]
     fn none() -> Result<()> {
-        let cfg = ContextFreeGrammar::from_text(from_utf8(include_bytes!("../../test_data/grammars/none"))?)?;
+        let cfg = ContextFreeGrammar::from_text(from_utf8(include_bytes!(
+            "../../test_data/grammars/none"
+        ))?)?;
 
         assert!(!cfg.cyk(&[]));
         Ok(())
@@ -356,7 +406,9 @@ mod cfg {
 
     #[test]
     fn test() -> Result<()> {
-        let cfg = ContextFreeGrammar::from_text(from_utf8(include_bytes!("../../test_data/grammars/operations"))?)?;
+        let cfg = ContextFreeGrammar::from_text(from_utf8(include_bytes!(
+            "../../test_data/grammars/operations"
+        ))?)?;
 
         let ref a = String::from("a");
         let ref b = String::from("b");
@@ -385,7 +437,12 @@ mod cfpq {
 
     use super::{ContextFreeGrammar, ContextFreeResult};
 
-    fn test<F: Fn(&str, &Graph) -> Result<Vec<Ends>>>(graph: &str, grammar: &str, fun: F, expected: &[Ends]) -> Result<()> {
+    fn test<F: Fn(&str, &Graph) -> Result<Vec<Ends>>>(
+        graph: &str,
+        grammar: &str,
+        fun: F,
+        expected: &[Ends],
+    ) -> Result<()> {
         let graph = Graph::from_text(graph)?;
         let res = fun(grammar, &graph)?;
         let actual: HashSet<&Ends> = res.iter().collect();
@@ -428,25 +485,55 @@ mod cfpq {
     test!(hellings, "graph1", "grammar1", &[(0, 0), (1, 1), (0, 1)]);
     test!(hellings, "graph1", "grammar2", &[(0, 1)]);
     test!(hellings, "graph1", "grammar3", &[(0, 0), (0, 1)]);
-    test!(hellings, "graph2", "grammar1", &[(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (0, 4), (1, 3)]);
+    test!(
+        hellings,
+        "graph2",
+        "grammar1",
+        &[(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (0, 4), (1, 3)]
+    );
     test!(hellings, "graph2", "grammar2", &[(0, 0), (1, 3), (0, 4)]);
-    test!(hellings, "graph2", "grammar3", &[(0, 1), (1, 2), (0, 4), (1, 3), (1, 0)]);
+    test!(
+        hellings,
+        "graph2",
+        "grammar3",
+        &[(0, 1), (1, 2), (0, 4), (1, 3), (1, 0)]
+    );
 
     test!(matrices, "graph1", "epsilon", &[(0, 0), (1, 1)]);
     test!(matrices, "graph1", "none", &[]);
     test!(matrices, "graph1", "grammar1", &[(0, 0), (1, 1), (0, 1)]);
     test!(matrices, "graph1", "grammar2", &[(0, 1)]);
     test!(matrices, "graph1", "grammar3", &[(0, 0), (0, 1)]);
-    test!(matrices, "graph2", "grammar1", &[(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (0, 4), (1, 3)]);
+    test!(
+        matrices,
+        "graph2",
+        "grammar1",
+        &[(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (0, 4), (1, 3)]
+    );
     test!(matrices, "graph2", "grammar2", &[(0, 0), (1, 3), (0, 4)]);
-    test!(matrices, "graph2", "grammar3", &[(0, 1), (1, 2), (0, 4), (1, 3), (1, 0)]);
+    test!(
+        matrices,
+        "graph2",
+        "grammar3",
+        &[(0, 1), (1, 2), (0, 4), (1, 3), (1, 0)]
+    );
 
     test!(tensors, "graph1", "epsilon", &[(0, 0), (1, 1)]);
     test!(tensors, "graph1", "none", &[]);
     test!(tensors, "graph1", "grammar1", &[(0, 0), (1, 1), (0, 1)]);
     test!(tensors, "graph1", "grammar2", &[(0, 1)]);
     test!(tensors, "graph1", "grammar3", &[(0, 0), (0, 1)]);
-    test!(tensors, "graph2", "grammar1", &[(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (0, 4), (1, 3)]);
+    test!(
+        tensors,
+        "graph2",
+        "grammar1",
+        &[(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (0, 4), (1, 3)]
+    );
     test!(tensors, "graph2", "grammar2", &[(0, 0), (1, 3), (0, 4)]);
-    test!(tensors, "graph2", "grammar3", &[(0, 1), (1, 2), (0, 4), (1, 3), (1, 0)]);
+    test!(
+        tensors,
+        "graph2",
+        "grammar3",
+        &[(0, 1), (1, 2), (0, 4), (1, 3), (1, 0)]
+    );
 }

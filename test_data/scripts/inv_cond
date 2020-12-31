@@ -1,1 +1,1 @@
-get edges where (c, a, b) satisfy a is start and b is from graph g
+get edges where (c, a, b) satisfy a is start and b is from g

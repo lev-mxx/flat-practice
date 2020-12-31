@@ -14,13 +14,12 @@ use super::cfg::{ContextFreeGrammar, ContextFreeResult};
 use super::dfa::Dfa;
 use super::graph::{BooleanMatrix, Edge, Ends, ExtractPairs, Graph};
 
-#[derive(Debug)]
 pub struct Rfa {
     pub(crate) dfa: Dfa,
     pub(crate) nonterminals: HashSet<String>,
-    pub(crate) ends2nonterminal: HashMap<(u64, u64), String>,
+    pub(crate) ends2nonterminal: HashMap<(usize, usize), String>,
     pub(crate) with_epsilon: HashSet<String>,
-    pub(crate) initial: String
+    pub(crate) initial: String,
 }
 
 impl Rfa {
@@ -35,18 +34,27 @@ impl Rfa {
     pub fn from_text_without_regex(text: &str) -> Result<Rfa> {
         let converted = ContextFreeGrammar::convert(text.lines().map(Ok))?;
 
-        let (initial, nonterminals, productions, produces_epsilon) = Python::with_gil(|py| -> Result<(String, Vec<String>, Vec<(String, Vec<String>)>, bool)> {
-            let module = PyModule::from_code(py, from_utf8(include_bytes!("py/read_cfg_in_cnf.py"))?, "a.compute.py", "a")?;
-            Ok(module.call1("parse_cfg", (converted.as_str(),))?.extract()?)
-        })?;
+        let (initial, nonterminals, productions, produces_epsilon) = Python::with_gil(
+            |py| -> Result<(String, Vec<String>, Vec<(String, Vec<String>)>, bool)> {
+                let module = PyModule::from_code(
+                    py,
+                    from_utf8(include_bytes!("py/read_cfg_in_cnf.py"))?,
+                    "a.compute.py",
+                    "a",
+                )?;
+                Ok(module
+                    .call1("parse_cfg", (converted.as_str(),))?
+                    .extract()?)
+            },
+        )?;
 
         let mut edges = Vec::<Edge>::new();
-        let mut initials = HashSet::<u64>::new();
-        let mut finals = HashSet::<u64>::new();
+        let mut initials = HashSet::<usize>::new();
+        let mut finals = HashSet::<usize>::new();
         let mut with_epsilon = HashSet::<String>::new();
-        let mut ends = HashMap::<String, (u64, u64)>::new();
+        let mut ends = HashMap::<String, (usize, usize)>::new();
 
-        let mut size: u64 = 0;
+        let mut size: usize = 0;
 
         if produces_epsilon {
             with_epsilon.insert(initial.clone());
@@ -66,9 +74,11 @@ impl Rfa {
 
             match body.len() {
                 0 => unreachable!(),
-                1 => { edges.push((*begin, *end, body.into_iter().next().unwrap())); },
+                1 => {
+                    edges.push((*begin, *end, body.into_iter().next().unwrap()));
+                }
                 n => {
-                    let n = n as u64;
+                    let n = n as usize;
                     let mut body = body.into_iter();
                     edges.push((*begin, size, body.next().unwrap()));
                     size += 1;
@@ -89,13 +99,15 @@ impl Rfa {
             finals,
         };
 
-        let mut ends2nonterminal = HashMap::<(u64, u64), String>::new();
+        let mut ends2nonterminal = HashMap::<(usize, usize), String>::new();
         for nonterminal in &with_epsilon {
             let (begin, _) = ends.get(nonterminal).unwrap();
             ends2nonterminal.insert((*begin, *begin), nonterminal.clone());
         }
 
-        ends.into_iter().for_each(|(nt, ends)| { ends2nonterminal.insert(ends, nt); });
+        ends.into_iter().for_each(|(nt, ends)| {
+            ends2nonterminal.insert(ends, nt);
+        });
 
         Ok(Rfa {
             dfa,
@@ -108,47 +120,64 @@ impl Rfa {
 
     pub fn from_text(text: &str) -> Result<Rfa> {
         let mut edges = Vec::<Edge>::new();
-        let mut initials = HashSet::<u64>::new();
-        let mut finals = HashSet::<u64>::new();
+        let mut initials = HashSet::<usize>::new();
+        let mut finals = HashSet::<usize>::new();
         let mut with_epsilon = HashSet::<String>::new();
         let mut nonterminals = HashSet::<String>::new();
-        let mut ends2nonterminal = HashMap::<(u64, u64), String>::new();
+        let mut ends2nonterminal = HashMap::<(usize, usize), String>::new();
 
-        let mut size: u64 = 0;
+        let mut size: usize = 0;
 
         for line in text.lines() {
             let (head, body) = if let Some(space) = line.find(" ") {
                 line.split_at(space)
             } else {
-                continue
+                continue;
             };
 
-            let nonterminal: String = head.chars()
+            let nonterminal: String = head
+                .chars()
                 .skip_while(|c| c.is_whitespace())
                 .take_while(|c| !c.is_whitespace())
                 .collect();
 
-            let (line_initial, line_finals, line_edges) = Python::with_gil(|py| -> Result<(u64, Vec<u64>, Vec<Edge>)> {
-                let module = PyModule::from_code(py, from_utf8(include_bytes!("py/regex_to_edges.py"))?, "a.compute.py", "a")?;
-                let py_res: (u64, Vec<u64>, Vec<Edge>) = module.call1("regex_to_edges", (body,))?.extract()?;
-                Ok(py_res)
-            })?;
+            let (line_initial, line_finals, line_edges) =
+                Python::with_gil(|py| -> Result<(usize, Vec<usize>, Vec<Edge>)> {
+                    let module = PyModule::from_code(
+                        py,
+                        from_utf8(include_bytes!("py/regex_to_edges.py"))?,
+                        "a.compute.py",
+                        "a",
+                    )?;
+                    let py_res: (usize, Vec<usize>, Vec<Edge>) =
+                        module.call1("regex_to_edges", (body,))?.extract()?;
+                    Ok(py_res)
+                })?;
 
             let mut max = line_initial;
 
             initials.insert(size + line_initial);
             for line_final in line_finals {
-                ends2nonterminal.insert((size + line_initial, size + line_final), nonterminal.clone());
+                ends2nonterminal.insert(
+                    (size + line_initial, size + line_final),
+                    nonterminal.clone(),
+                );
 
                 finals.insert(size + line_final);
-                if line_final > max { max = line_final; }
+                if line_final > max {
+                    max = line_final;
+                }
             }
 
             if line_edges.len() > 0 {
                 for (from, to, label) in line_edges {
                     edges.push((size + from, size + to, label));
-                    if from > max { max = from; }
-                    if to > max { max = to; }
+                    if from > max {
+                        max = from;
+                    }
+                    if to > max {
+                        max = to;
+                    }
                 }
             } else {
                 with_epsilon.insert(nonterminal.clone());
@@ -175,14 +204,13 @@ impl Rfa {
 }
 
 impl Graph {
-
-    pub fn cfpq_tensor_product<'a>(&self, rfa: &'a Rfa) -> ResultTensors<'a> {
+    pub fn cfpq_tensor_product(&self, rfa: &Rfa) -> ResultTensors {
         let mut m2 = self.clone();
 
         for nonterminal in &rfa.with_epsilon {
             let matrix = m2.get_mut(nonterminal.clone());
             for i in 0..self.size {
-                matrix.insert(i, i, true);
+                matrix.insert(i as u64, i as u64, true);
             }
         }
 
@@ -193,12 +221,12 @@ impl Graph {
             for (from, to) in intersection.reachable_pairs() {
                 let ref rfa_c = (from / self.size, to / self.size);
                 let (rfa_from, rfa_to) = rfa_c;
-                if  rfa.dfa.initials.contains(rfa_from) && rfa.dfa.finals.contains(rfa_to) {
+                if rfa.dfa.initials.contains(rfa_from) && rfa.dfa.finals.contains(rfa_to) {
                     let (from, to) = (from % self.size, to % self.size);
                     let nt = rfa.ends2nonterminal.get(rfa_c).unwrap();
                     let matrix = m2.get_mut(nt.clone());
-                    if let None = matrix.get(from, to) {
-                        matrix.insert(from, to, true);
+                    if let None = matrix.get(from as u64, to as u64) {
+                        matrix.insert(from as u64, to as u64, true);
                         changing = true;
                     }
                 }
@@ -207,20 +235,20 @@ impl Graph {
 
         ResultTensors {
             map: m2.matrices,
-            nonterminals: &rfa.nonterminals,
+            nonterminals: rfa.nonterminals.clone(),
         }
     }
 }
 
-pub struct ResultTensors<'a> {
+pub struct ResultTensors {
     pub(crate) map: HashMap<String, BooleanMatrix>,
-    pub(crate) nonterminals: &'a HashSet<String>,
+    pub(crate) nonterminals: HashSet<String>,
 }
 
-impl<'a> ContextFreeResult for ResultTensors<'a> {
+impl ContextFreeResult for ResultTensors {
     fn reachable_edges(&self, nonterminal: &str) -> Vec<Ends> {
         if self.nonterminals.contains(nonterminal) {
-            if let Some(matrix)  = self.map.get(nonterminal) {
+            if let Some(matrix) = self.map.get(nonterminal) {
                 return matrix.extract_pairs();
             }
         }
@@ -229,7 +257,6 @@ impl<'a> ContextFreeResult for ResultTensors<'a> {
     }
 
     fn nonterminals(&self) -> &HashSet<String> {
-        self.nonterminals
+        &self.nonterminals
     }
 }
-

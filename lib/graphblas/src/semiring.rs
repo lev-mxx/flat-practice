@@ -4,6 +4,7 @@
 
 use std::marker::PhantomData;
 use std::os::raw::c_void;
+
 use crate::*;
 
 make_ffi_trait!(Semiring<T>);

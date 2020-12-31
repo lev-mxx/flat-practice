@@ -4,6 +4,7 @@
 
 use std::marker::PhantomData;
 use std::os::raw::c_void;
+
 use crate::*;
 
 make_ffi_trait!(Monoid<T>);
@@ -14,7 +15,7 @@ macro_rules! make_monoid {
         paste::paste! {
             make_static_instance!(Monoid<T> => <$ty>, [<GrB_ $grb_op _MONOID_ $grb_ty>], $op_name);
         }
-    }
+    };
 }
 
 make_monoid!(bool, BOOL, LOR, lor);
