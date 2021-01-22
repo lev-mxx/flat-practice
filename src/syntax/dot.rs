@@ -4,6 +4,7 @@ pub fn to_dot(s: &Script) -> String {
     let mut ctx = DotContext {
         buffer: String::from("digraph script {\n"),
         last_id: 0,
+        t: &()
     };
     s.to_dot(&mut ctx);
     ctx.buffer.push('}');
@@ -138,12 +139,13 @@ impl ToDot for Pattern {
     }
 }
 
-struct DotContext {
-    buffer: String,
-    last_id: usize,
+pub struct DotContextG<'a, T> {
+    pub buffer: String,
+    pub last_id: usize,
+    pub t: &'a T,
 }
 
-impl DotContext {
+impl<'a, T> DotContextG<'a, T> {
     pub fn vertex(&mut self, label: &str) -> usize {
         let id = self.last_id;
         self.last_id += 1;
@@ -157,32 +159,48 @@ impl DotContext {
             .push_str(format!("\t{}->{}\n", from, to).as_str());
     }
 
-    pub fn binop(&mut self, op: &str, o1: &dyn ToDot, o2: &dyn ToDot) -> usize {
+    pub fn binop(&mut self, op: &str, o1: &dyn ToDotG<'a, Ctx = T>, o2: &dyn ToDotG<'a, Ctx = T>) -> usize {
         let id = self.vertex(op);
-        let o1_id = o1.to_dot(self);
-        let o2_id = o2.to_dot(self);
+        let o1_id = o1.to_dot_g(self);
+        let o2_id = o2.to_dot_g(self);
         self.edge(id, o1_id);
         self.edge(id, o2_id);
         id
     }
 
-    pub fn op(&mut self, op: &str, o: &dyn ToDot) -> usize {
+    pub fn op(&mut self, op: &str, o: &dyn ToDotG<'a, Ctx = T>) -> usize {
         let id = self.vertex(op);
-        let o_id = o.to_dot(self);
+        let o_id = o.to_dot_g(self);
         self.edge(id, o_id);
         id
     }
 
-    pub fn fold_op(&mut self, op: &str, os: &Vec<impl ToDot>) -> usize {
+    pub fn fold_op(&mut self, op: &str, os: &Vec<impl ToDotG<'a, Ctx = T>>) -> usize {
         let id = self.vertex(op);
         for o in os {
-            let p_id = o.to_dot(self);
+            let p_id = o.to_dot_g(self);
             self.edge(id, p_id);
         }
         id
     }
 }
 
-trait ToDot {
+type DotContext = DotContextG<'static, ()>;
+
+pub trait ToDot {
     fn to_dot(&self, ctx: &mut DotContext) -> usize;
+}
+
+impl<T: ToDot> ToDotG<'static> for T {
+    type Ctx = ();
+
+    fn to_dot_g(&self, ctx: &mut DotContextG<'static, ()>) -> usize {
+        self.to_dot(ctx)
+    }
+}
+
+pub trait ToDotG<'a> {
+    type Ctx;
+
+    fn to_dot_g(&self, ctx: &mut DotContextG<'a, Self::Ctx>) -> usize;
 }
