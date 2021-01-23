@@ -2,7 +2,7 @@
 SHELL = /bin/bash
 
 build: dependencies
-	locate graphblas; locate graphblas1; source make/set_paths.bash && cargo build
+	$(shell locate graphblas); $(shell locate graphblas1); source make/set_paths.bash && cargo build
 
 test: dependencies
 	source make/set_paths.bash && cargo test
