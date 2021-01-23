@@ -1,8 +1,12 @@
 #![allow(dead_code)]
 #![feature(fn_traits)]
+#![feature(assoc_char_funcs)]
 
 #[macro_use]
 extern crate lalrpop_util;
+
+#[macro_use]
+extern crate lazy_static;
 
 use std::env;
 use std::fs::File;
@@ -14,10 +18,12 @@ use anyhow::Result;
 use crate::compute::dfa::Dfa;
 use crate::compute::graph::Graph;
 use crate::measure::write_csv;
+use crate::ll::Data;
 
 mod compute;
 mod syntax;
 mod measure;
+mod ll;
 
 static HELP: &'static str = concat!("Arguments: (stats *path to graph file* *path to request file*)\n",
     "\t| (measure *path*)\n",
@@ -70,22 +76,39 @@ fn main() -> Result<()> {
             let path = arg();
             let string = match path.as_str() {
                 "-" => read_stdin(),
-                _ => {
-                    let mut file = File::open(path)?;
-                    let mut content = String::new();
-                    file.read_to_string(&mut content)?;
-                    content
-                }
+                _ => read_file(&path)?,
             };
             let ast = syntax::build_ast(string.as_str())?;
             let dot = syntax::to_dot(&ast);
 
             println!("{}", dot);
         }
+        "ll-table" => {
+            let text = read_file(&arg())?;
+            //println!("{:?}", cfg);
+            let table = ll::build_table(&text)?;
+            println!("{}", serde_json::to_string_pretty(&table)?)
+        }
+        "ll" => {
+            let table = read_file(&arg())?;
+            let text = read_file(&arg())?;
+            let info: Data = serde_json::from_str(&table)?;
+            let ast = ll::build_ast(&info, &text)?;
+            let dot = ll::to_dot(&info, &ast);
+            //println!("{}", serde_json::to_string_pretty(&ast)?)
+            println!("{}", dot);
+        }
         other => panic!("unknown command {}", other)
     }
 
     Ok(())
+}
+
+fn read_file(file: &str) -> Result<String> {
+    let mut file = File::open(file)?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
+    Ok(content)
 }
 
 fn read_stdin() -> String {

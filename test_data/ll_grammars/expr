@@ -1,0 +1,5 @@
+expr: <factor> <expr_cont>;
+expr_cont: '+' <expr> | epsilon;
+factor: <primary> <factor_cont>;
+factor_cont: '*' <factor> | epsilon;
+primary: n | '(' <expr> ')';

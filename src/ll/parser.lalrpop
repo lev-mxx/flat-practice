@@ -1,0 +1,72 @@
+use crate::ll::chars::ParserCtx;
+use crate::ll::algo::Production;
+use crate::ll::algo::Symbol;
+
+grammar(info: &mut ParserCtx);
+
+pub rules: Vec<(usize, Production)> = {
+    <rule_alts*> => {
+        let mut res = Vec::new();
+        for mut rs in <> {
+            res.append(&mut rs);
+        }
+        res
+    }
+}
+
+rule_alts: Vec<(usize, Production)> = {
+    <head:ident> ":" <fst: body> <tail: ("|" <body>)*> ";" => {
+        let mut res = Vec::new();
+        res.push((head, fst));
+        for t in tail {
+            res.push((head, t));
+        }
+        res
+    }
+}
+
+body: Production = {
+    "epsilon" => Vec::new(),
+    <body: symbol*> => body,
+}
+
+symbol: Symbol = {
+    terminal => <>,
+    nonterminal => <>,
+}
+
+terminal: Symbol = {
+    any => Symbol::terminal(<> as usize),
+    "'" <any> "'" => Symbol::terminal(<> as usize),
+}
+
+nonterminal: Symbol = {
+    "<" <ident> ">" => Symbol::nonterminal(<>)
+}
+
+ident: usize = {
+    alpha => {
+        let code = info.nonterminals.len();
+        *info.nonterminals.entry(<>.to_string()).or_insert(code)
+    },
+    r"[_a-zA-Z][_0-9a-zA-Z]+" => {
+        let code = info.nonterminals.len();
+        *info.nonterminals.entry(<>.to_string()).or_insert(code)
+    }
+}
+
+alpha: char = {
+    char<r"[a-zA-Z]">,
+}
+
+alphanum: char = {
+    alpha,
+    char<r"[0-9]">,
+}
+
+any: char = {
+    alphanum,
+    char<r"[^0-9a-zA-Z_]">,
+}
+
+char<T>: char = { T => <>.chars().next().unwrap() }
