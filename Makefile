@@ -2,7 +2,7 @@
 SHELL = /bin/bash
 
 build: dependencies
-	source make/set_paths.bash && cargo build
+	locate graphblas && source make/set_paths.bash && cargo build
 
 test: dependencies
 	source make/set_paths.bash && cargo test
