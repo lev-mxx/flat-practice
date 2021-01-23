@@ -38,7 +38,7 @@ impl Table {
     pub fn build_ast<T, I: Tokens<T>>(&self, tokens: &mut I) -> Result<Node<T>> {
         let mut stack = Vec::<Symbol>::new();
         stack.push(Symbol::nonterminal(0));
-        let mut tk_n = 0;
+        let mut tn = 0;
 
         let mut ast_path = Vec::<(Node<T>, usize)>::new();
 
@@ -60,13 +60,13 @@ impl Table {
                             ast_path.last_mut().unwrap().0.children.push(Child::Epsilon(nonterminal))
                         }
                     } else {
-                        return Err(anyhow::Error::msg(format!("No rule: {} {} {}", nonterminal, token as u8 as char, tk_n)))
+                        return Err(anyhow::Error::msg(format!("No rule {}: {} {}", tn, nonterminal, token)))
                     }
                 }
                 (Variant::Terminal, terminal) => {
                     let token = tokens.peek()?;
                     if token == terminal {
-                        tk_n += 1;
+                        tn += 1;
                         let child = if let Some(value) = tokens.pop()? {
                             Child::Value(token, value)
                         } else {
@@ -74,7 +74,7 @@ impl Table {
                         };
                         ast_path.last_mut().unwrap().0.children.push(child);
                     } else {
-                        return Err(anyhow::Error::msg("Invalid token"))
+                        return Err(anyhow::Error::msg(format!("Invalid token {}: {}", tn, terminal)))
                     }
                 }
             }
@@ -88,7 +88,7 @@ impl Table {
                     if tokens.peek()? == END_SYMBOL_CODE {
                         return Ok(node)
                     }
-                    return Err(anyhow::Error::msg("Remaining symbols"))
+                    return Err(anyhow::Error::msg(format!("Not the end: {}", tn)))
                 }
                 node_stack_size = ast_path.last().unwrap().1;
             }
