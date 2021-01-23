@@ -28,8 +28,6 @@ jobs:
           build/include
           ~/.cargo
         key: ${{ runner.os }}-cache
-    - name: Install GraphBLAS
-      run: sudo apt-get install libgraphblas1 -y
     - name: Prepare
       run: rustup install nightly && rustup default nightly
     - name: Build
