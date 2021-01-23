@@ -91,7 +91,7 @@ pub(crate) fn handle_grb_info(err: u32) {
     match err {
         0 => (),
         _ => {
-            let grb_err_text = unsafe { CStr::from_ptr(GrB_error()).to_str() };
+            let grb_err_text = "cannot call GrB_error"; //unsafe { CStr::from_ptr(GrB_error()).to_str() };
 
             panic!("Error: {}, grb error {:?} ", err, grb_err_text);
         }
@@ -124,6 +124,6 @@ const GrB_Mode_GrB_NONBLOCKING: u32 = 0;
 
 #[link(name = "graphblas")]
 extern "C" {
-    pub(crate) fn GrB_error() -> *const i8;
+    //pub(crate) fn GrB_error() -> *const i8;
     fn GrB_init(mode: u32) -> u32;
 }
