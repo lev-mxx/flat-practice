@@ -1,8 +1,14 @@
 
 SHELL = /bin/bash
 
-build: dependencies
-	$(shell locate graphblas); $(shell locate graphblas1); source make/set_paths.bash && cargo build
+build: dependencies locate locate1
+	source make/set_paths.bash && cargo build
+
+locate:
+	$(info $(shell locate graphblas))
+
+locate1:
+	$(info $(shell locate graphblas1))
 
 test: dependencies
 	source make/set_paths.bash && cargo test
