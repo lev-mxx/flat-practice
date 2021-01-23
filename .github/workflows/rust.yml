@@ -27,7 +27,6 @@ jobs:
           build/home
           build/include
           ~/.cargo
-          ~/.local
         key: ${{ runner.os }}-cache
     - name: Install GraphBLAS
       run: sudo apt install libgraphblas1
