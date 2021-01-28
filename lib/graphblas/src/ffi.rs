@@ -2,7 +2,6 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-use std::ffi::CStr;
 use std::os::raw::c_void;
 
 pub struct GrbLink {

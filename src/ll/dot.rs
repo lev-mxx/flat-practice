@@ -24,7 +24,6 @@ impl<'a, T: 'a> ToDotG<'a> for Child<T> {
         match self {
             Child::Value(terminal, t) => ctx.vertex(&format!("{} = {}", ctx.t.terminal(*terminal), ctx.t.value(t))),
             Child::Nonterminal(node) => node.to_dot_g(ctx),
-            Child::Epsilon(nonterminal) => ctx.vertex(&format!("<{}>", ctx.t.nonterminal(*nonterminal))),
             Child::Terminal(terminal) => ctx.vertex(&format!("{}", ctx.t.terminal(*terminal))),
         }
     }
